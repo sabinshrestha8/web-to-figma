@@ -6,6 +6,7 @@
 import {
   COLOR_PROPS,
   EMBEDDED_COLOR_PROPS,
+  MAX_SVG_CHARS,
   type RawElement,
   type RawNode,
   type RawRect,
@@ -13,6 +14,7 @@ import {
   STYLE_PROPS,
   type StyleProp,
 } from "@w2f/convert/snapshot";
+import { serializeSvg } from "./svg.ts";
 
 const SKIP = new Set(["script", "style", "noscript", "template", "head", "meta", "link", "title", "base"]);
 
@@ -141,8 +143,21 @@ export function collect(opts: { maxNodes: number; dpr: number }): {
     if (transformed && el instanceof HTMLElement) {
       raw.layoutSize = { width: el.offsetWidth, height: el.offsetHeight };
     }
+    if (el instanceof HTMLImageElement) {
+      const broken = el.complete && el.naturalWidth === 0 && el.naturalHeight === 0;
+      raw.image = {
+        src: el.currentSrc || el.src,
+        width: el.naturalWidth,
+        height: el.naturalHeight,
+        state: broken ? "failed" : el.complete ? "loaded" : "pending",
+      };
+    }
+    if (el instanceof SVGSVGElement) {
+      const markup = serializeSvg(el, raw.rect, normalizeColor);
+      if (markup.length <= MAX_SVG_CHARS) raw.svg = markup; // else a raster island
+    }
     nodes.push(raw);
-    if (tag === "svg" || tag === "iframe") return; // vectors arrive in Phase 5; frames are never entered
+    if (tag === "svg" || tag === "iframe") return; // svg content is in its markup; frames are never entered
     visitChildren(el, id, cs.whiteSpace);
   };
 
@@ -234,3 +249,5 @@ export async function scrollThrough(maxHeight: number): Promise<boolean> {
   window.scrollTo({ top: 0, behavior: "instant" });
   return nextFrames();
 }
+
+export { decodeImage } from "./decode.ts";

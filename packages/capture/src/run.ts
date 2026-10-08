@@ -18,16 +18,15 @@ export interface ConvertJob extends CaptureOptions {
   onProgress?: (done: number, total: number, url: string) => void;
 }
 
-/** PNG width/height live at fixed offsets in the IHDR chunk. */
-export function pngAsset(bytes: Buffer): { id: string; meta: AssetMeta; base64: string } {
+/** An asset by content hash. PNG width/height default to the IHDR chunk's fixed offsets. */
+export function pngAsset(
+  bytes: Buffer,
+  mime: AssetMeta["mime"] = "image/png",
+  size = { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) },
+): { id: string; meta: AssetMeta; base64: string } {
   return {
     id: createHash("sha256").update(bytes).digest("hex"),
-    meta: {
-      mime: "image/png",
-      width: bytes.readUInt32BE(16),
-      height: bytes.readUInt32BE(20),
-      byteLength: bytes.length,
-    },
+    meta: { mime, ...size, byteLength: bytes.length },
     base64: bytes.toString("base64"),
   };
 }
@@ -52,18 +51,29 @@ export async function convertUrls(job: ConvertJob): Promise<Result<Bundle>> {
         );
         continue;
       }
-      const add = (png: Buffer) => {
-        const a = pngAsset(png);
+      const add = (png: Buffer, ...format: [AssetMeta["mime"]?, { width: number; height: number }?]) => {
+        const a = pngAsset(png, ...format);
         assets[a.id] = a.meta;
         assetData[a.id] = a.base64;
         return a.id;
       };
       const rasters = Object.fromEntries([...result.value.rasters].map(([key, png]) => [key, add(png)]));
+      const images = Object.fromEntries(
+        [...result.value.images].map(([key, d]) => [
+          key,
+          {
+            assetId: add(d.bytes, d.mime, { width: d.pixelWidth, height: d.pixelHeight }),
+            width: d.width,
+            height: d.height,
+          },
+        ]),
+      );
       const converted = snapshotToIR(result.value.snapshot, {
         captureId,
         maxHeight: LIMITS.maxCaptureHeight,
         screenshot: add(result.value.screenshot),
         rasters,
+        images,
       });
       captures.push(converted.capture);
       diagnostics.push(

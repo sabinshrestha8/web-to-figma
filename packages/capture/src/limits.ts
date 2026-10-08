@@ -15,4 +15,13 @@ export const LIMITS = {
   maxImageSide: 4_096,
   /** Raster islands + pattern tiles per capture. */
   maxRasters: 200,
+  /** Images (img, url() backgrounds, svg fallbacks) per capture. */
+  maxAssets: 300,
+  maxAssetBytes: 10_000_000,
+  /** Decoded size; larger images are rejected, not downscaled. */
+  maxImagePixels: 50_000_000,
+  /** Per image; a decoder that takes longer is replaced. */
+  decodeMs: 10_000,
+  /** Image response bytes kept in memory per capture, for decoding. */
+  maxImageStoreBytes: 100_000_000,
 } as const;

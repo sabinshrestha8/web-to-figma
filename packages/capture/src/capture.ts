@@ -1,7 +1,8 @@
-import { type RawSnapshot, rasterPlan } from "@w2f/convert";
+import { imagePlan, type RawSnapshot, rasterPlan } from "@w2f/convert";
 import { ConversionError, type Diagnostic, diag, type Result } from "@w2f/ir";
 import type { BrowserContext, Page, Request, Route } from "playwright";
 import { getBrowser } from "./browser.ts";
+import { type DecodedImage, decodeImages } from "./images.ts";
 import { collectorHandle, inPage } from "./in-page.ts";
 import { LIMITS } from "./limits.ts";
 import { createPolicy, type Policy } from "./policy.ts";
@@ -27,6 +28,8 @@ export interface CaptureOutput {
   screenshot: Buffer;
   /** PNG per fulfilled `rasterPlan` key (raster islands and pattern tiles). */
   rasters: Map<string, Buffer>;
+  /** Decoded image per fulfilled `imagePlan` key. */
+  images: Map<string, DecodedImage>;
   diagnostics: Diagnostic[];
 }
 
@@ -61,6 +64,8 @@ interface NetworkEvents {
   blocked(d: Diagnostic, nav: boolean): void;
   /** A main-frame navigation redirected to an already-checked URL; navigate() re-issues it. */
   redirect(url: string): void;
+  /** The body of an image response, by request URL (decoded later, see images.ts). */
+  image(url: string, body: Buffer): void;
 }
 
 /**
@@ -94,7 +99,12 @@ function guardNetwork(context: BrowserContext, page: Page, policy: Policy, on: N
       if (response instanceof Error) return route.abort("failed"); // same as the browser failing it
       const location =
         response.status() >= 300 && response.status() < 400 ? response.headers().location : undefined;
-      if (!location) return route.fulfill({ response });
+      if (!location) {
+        const type = response.headers()["content-type"] ?? "";
+        if (req.resourceType() === "image" || type.startsWith("image/"))
+          on.image(req.url(), await response.body());
+        return route.fulfill({ response });
+      }
       const next = new URL(location, target).href;
       const verdict = await policy.check(next, !nav);
       if (verdict) {
@@ -281,6 +291,8 @@ export async function capture(
   const blockedHosts = new Set<string>();
   const nav: NavState = {};
   const activity: Activity = { inflight: 0, navigations: 0, pendingNavigations: new Set() };
+  const fetchedImages = new Map<string, Buffer>();
+  let imageBytes = 0;
 
   const run = async (): Promise<CaptureOutput> => {
     const page = await context.newPage();
@@ -299,6 +311,13 @@ export async function capture(
       },
       redirect: (next) => {
         nav.redirect = next;
+      },
+      image: (url, body) => {
+        // Over the limits: not kept, so decodeImages reports it.
+        if (body.length > LIMITS.maxAssetBytes || imageBytes + body.length > LIMITS.maxImageStoreBytes)
+          return;
+        imageBytes += body.length - (fetchedImages.get(url)?.length ?? 0);
+        fetchedImages.set(url, body);
       },
     });
 
@@ -357,16 +376,23 @@ export async function capture(
         height: Math.min(snapshot.documentSize.height, LIMITS.maxReferenceHeight),
       },
     });
+    const images = await decodeImages(
+      browser,
+      imagePlan(snapshot, LIMITS.maxCaptureHeight),
+      fetchedImages,
+      viewport.dpr,
+      diagnostics,
+    );
     const rasters = await renderRasters(
       browser,
       page,
       (id) => collector.evaluate((m, a) => m.isolate(a.c.elements, a.id), { c: collected, id }),
-      rasterPlan(snapshot, LIMITS.maxCaptureHeight),
+      rasterPlan(snapshot, LIMITS.maxCaptureHeight, (key) => images.has(key)),
       snapshot.documentSize,
       viewport.dpr,
       diagnostics,
     );
-    return { snapshot, screenshot, rasters, diagnostics };
+    return { snapshot, screenshot, rasters, images, diagnostics };
   };
 
   try {
