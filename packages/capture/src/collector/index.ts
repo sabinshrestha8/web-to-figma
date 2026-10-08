@@ -42,11 +42,17 @@ function colorNormalizer(): (value: string) => string {
 /** Color functions inside shadows/gradients: normalize each one in place. */
 const COLOR_FN = /\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\([^()]*\)/g;
 
+/** Collapse white space but keep edge spaces: the converter joins inline neighbors, then trims. */
 function collapse(text: string, whiteSpace: string): string {
   if (/^(pre|pre-wrap|break-spaces)$/.test(whiteSpace)) return text;
-  if (whiteSpace === "pre-line") return text.replace(/[ \t]+/g, " ").trim();
-  return text.replace(/\s+/g, " ").trim();
+  if (whiteSpace === "pre-line") return text.replace(/[ \t]*\n[ \t]*/g, "\n").replace(/[ \t]+/g, " ");
+  return text.replace(/\s+/g, " ");
 }
+
+const isInline = (n: ChildNode | null): boolean =>
+  n !== null &&
+  (n.nodeType === Node.TEXT_NODE ||
+    (n.nodeType === Node.ELEMENT_NODE && getComputedStyle(n as Element).display.startsWith("inline")));
 
 /** The snapshot, plus each recorded element by snapshot id (kept in the page for `isolate`). */
 export function collect(opts: { maxNodes: number; dpr: number }): {
@@ -75,7 +81,9 @@ export function collect(opts: { maxNodes: number; dpr: number }): {
     const lines = Array.from(range.getClientRects())
       .filter((r) => r.width > 0 && r.height > 0)
       .map(toRect);
-    if (lines.length) nodes.push({ kind: "text", id: nextId++, parent, text, lines });
+    // A space where a line wraps has no rect, but it still separates the words around it.
+    const separator = text.trim() === "" && isInline(node.previousSibling) && isInline(node.nextSibling);
+    if (lines.length || separator) nodes.push({ kind: "text", id: nextId++, parent, text, lines });
   };
 
   const visitChildren = (el: Element, parent: number | null, whiteSpace: string) => {
