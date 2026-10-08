@@ -3,12 +3,14 @@ import {
   type Capture,
   type Diagnostic,
   diag,
+  type Layout,
   type Node,
   type Paint,
   type VectorNode,
 } from "@w2f/ir";
 import { parseColor, round2 } from "./css.ts";
 import type { ImageAsset } from "./images.ts";
+import { inferLayout, type LayoutItem } from "./layout.ts";
 import { islandReason } from "./rasters.ts";
 import { createReport } from "./report.ts";
 import { bakeScale } from "./scale.ts";
@@ -94,7 +96,8 @@ export function flatten(box: BoxNode): Node {
 /**
  * Boxes carry borders, radii, gradients, shadows, blurs, blend modes, clipping and leaf rotation;
  * replaced content becomes raster islands; each run of inline content becomes one text node with
- * style runs. Every box is still absolutely positioned (layout "none") until Phase 6.
+ * style runs. Containers get a verified stack/grid layout when a candidate reproduces the measured
+ * child rects within 1 px, else absolute positioning with LAYOUT_ABSOLUTE_FALLBACK.
  */
 export function snapshotToIR(raw: RawSnapshot, opts: ConvertOptions): ConvertResult {
   const snap = bakeScale(raw);
@@ -144,10 +147,35 @@ export function snapshotToIR(raw: RawSnapshot, opts: ConvertOptions): ConvertRes
 
   const kidsOf = (el: RawElement) => children.get(el.id) ?? [];
   const decorationOf = decorationResolver(elements);
-  const convertAll = (parent: RawElement): Node[] =>
-    paintOrder(inlineGroups(kidsOf(parent), parent, kidsOf), parent)
-      .map((c) => convert(c, parent))
-      .filter((c): c is Node => c !== null);
+  const pendingLayouts = new Map<number, Layout>();
+  const convertAll = (parent: RawElement): Node[] => {
+    const ordered = paintOrder(inlineGroups(kidsOf(parent), parent, kidsOf), parent);
+    const pairs: { raw: RawElement | null; node: Node; domIndex: number }[] = [];
+    ordered.forEach((c, domIndex) => {
+      const node = convert(c, parent);
+      if (node) pairs.push({ raw: c.kind === "inline" ? null : c, node, domIndex });
+    });
+    const items: LayoutItem[] = pairs.map((p) => ({ raw: p.raw, node: p.node, domIndex: p.domIndex }));
+    const inferred = inferLayout(parent, items, `${captureId}:${parent.id}`);
+    for (const p of pairs) {
+      const u = inferred.updates.get(p.node.id);
+      if (!u) continue;
+      p.node.sizing = { horizontal: u.horizontal, vertical: u.vertical };
+      p.node.position = u.position;
+      if (u.gridCell) p.node.gridCell = u.gridCell;
+    }
+    if (inferred.fallbackReason) {
+      report.add(
+        "LAYOUT_ABSOLUTE_FALLBACK",
+        inferred.fallbackReason,
+        `${captureId}:${parent.id}`,
+        "absolute",
+      );
+    }
+    // stash the inferred layout for `convert` to pick up (parent box, built by the caller)
+    pendingLayouts.set(parent.id, inferred.layout);
+    return inferred.children;
+  };
 
   const convert = (n: RawElement | InlineGroup, parent: RawElement): Node | null => {
     if (n.kind === "inline") {
@@ -172,6 +200,7 @@ export function snapshotToIR(raw: RawSnapshot, opts: ConvertOptions): ConvertRes
     }
     if (n.svg && !island) return vector(n, n.svg, ctx, visible);
     const kids = island ? [] : convertAll(n);
+    const layout: Layout = island ? { mode: "none" } : (pendingLayouts.get(n.id) ?? { mode: "none" });
     const style = island
       ? islandStyle(n, ctx, island)
       : boxStyle(n, ctx, { leaf: kids.length === 0, visible, withColor: !(bodyPropagates && n === body) });
@@ -187,7 +216,7 @@ export function snapshotToIR(raw: RawSnapshot, opts: ConvertOptions): ConvertRes
       sizing: { horizontal: "fixed", vertical: "fixed" },
       source: { tag: n.tag, selector: selectorOf(n) },
       ...style,
-      layout: { mode: "none" },
+      layout,
       children: kids,
     };
     return flatten(box);

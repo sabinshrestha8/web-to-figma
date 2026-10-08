@@ -124,6 +124,31 @@ const defaults: Record<StyleProp, string> = {
   "clip-path": "none",
   "mask-image": "none",
   appearance: "auto",
+  "flex-direction": "row",
+  "flex-wrap": "nowrap",
+  "justify-content": "normal",
+  "align-items": "normal",
+  "align-content": "normal",
+  "column-gap": "normal",
+  "row-gap": "normal",
+  order: "0",
+  "flex-grow": "0",
+  "flex-shrink": "1",
+  "flex-basis": "auto",
+  "align-self": "auto",
+  "grid-template-columns": "none",
+  "grid-template-rows": "none",
+  "grid-column-start": "auto",
+  "grid-column-end": "auto",
+  "grid-row-start": "auto",
+  "grid-row-end": "auto",
+  "margin-top": "0px",
+  "margin-right": "0px",
+  "margin-bottom": "0px",
+  "margin-left": "0px",
+  "box-sizing": "content-box",
+  width: "auto",
+  height: "auto",
 };
 
 let nextId = 0;
@@ -798,6 +823,7 @@ describe("snapshotToIR: images and vectors", () => {
       ["IMAGE_FAILED", "placeholder"],
       ["IMAGE_FAILED", "placeholder"], // the lazy one: no island pixels in this test
       ["IMAGE_FAILED", "skipped"],
+      ["LAYOUT_ABSOLUTE_FALLBACK", "absolute"], // scattered images: no stack verifies
     ]);
   });
 
