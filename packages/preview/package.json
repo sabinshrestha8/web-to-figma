@@ -1,0 +1,15 @@
+{
+  "name": "@w2f/preview",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/render.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@w2f/ir": "workspace:*"
+  }
+}
