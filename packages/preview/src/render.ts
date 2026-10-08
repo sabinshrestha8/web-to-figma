@@ -43,16 +43,18 @@ function background(p: Paint, w: number, h: number, assets: Record<string, strin
   }
 }
 
-function effectsCss(effects: Effect[]): string[] {
+/** On text nodes a shadow follows the glyphs (Figma draws it so), hence text-shadow there. */
+function effectsCss(effects: Effect[], text: boolean): string[] {
   const shadows = effects
     .filter((e) => e.type === "shadow")
-    .map(
-      (e) =>
-        `${e.inset ? "inset " : ""}${e.offset.x}px ${e.offset.y}px ${e.blur}px ${e.spread}px ${rgba(e.color)}`,
+    .map((e) =>
+      text
+        ? `${e.offset.x}px ${e.offset.y}px ${e.blur}px ${rgba(e.color)}`
+        : `${e.inset ? "inset " : ""}${e.offset.x}px ${e.offset.y}px ${e.blur}px ${e.spread}px ${rgba(e.color)}`,
     )
     .reverse(); // IR is bottom-most first; CSS lists the top-most first
   const css: string[] = [];
-  if (shadows.length) css.push(`box-shadow:${shadows.join(", ")}`);
+  if (shadows.length) css.push(`${text ? "text-shadow" : "box-shadow"}:${shadows.join(", ")}`);
   for (const e of effects) {
     // Figma blur radius = 2 × CSS blur standard deviation (see docs/mapping.md).
     if (e.type === "layer-blur") css.push(`filter:blur(${e.radius / 2}px)`);
@@ -73,7 +75,7 @@ function common(n: Node, origin: { x: number; y: number }): string[] {
     ...(n.opacity !== 1 ? [`opacity:${n.opacity}`] : []),
     ...(n.blendMode !== "normal" ? [`mix-blend-mode:${n.blendMode}`] : []),
     ...(n.rotation ? [`transform:rotate(${n.rotation}deg)`] : []),
-    ...effectsCss(n.effects),
+    ...effectsCss(n.effects, n.type === "text"),
   ];
 }
 
