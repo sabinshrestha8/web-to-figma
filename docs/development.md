@@ -135,3 +135,14 @@ Build a thin end-to-end slice early, then widen fidelity one area at a time.
 - **Plugin:** font report. Dropping a bundle resolves fonts (`planFonts`) and lists them before **Build**/**Cancel**. `FONT_SUBSTITUTED` per requested style. `TEXT_REFLOW` after building (`reflowed`, aggregated). The UI keeps the bundle's capture diagnostics next to the build's.
 - **Fixture:** `article`. Visual diff unchanged on the earlier fixtures (landing 0.01%, card-grid 0.02%, boxes 0.13%); article 0.08%.
 - No IR schema change (still 1.2).
+
+### Phase 5: Images & SVG (2026-10-08)
+
+- **IR 1.3:** `crop` on image paints, `fallback` on vector nodes (both optional; 1.x documents still load).
+- **Collector:** `<img>` facts (`currentSrc`, natural size, loaded/failed/pending); `collector/svg.ts` serializes and sanitizes inline svg (computed paint as attributes, `<use>` inlined, hostile content stripped). Style props `object-fit`, `object-position`.
+- **Capture:** the network guard keeps image response bytes; `images.ts` sniffs, size-checks and decodes them in an isolated, offline context (`collector/decode.ts`): PNG/JPEG/GIF pass through, the rest is transcoded, oversize is downscaled, SVG is rendered at its drawn size × dpr. Found while building it: the decoder hung in a JavaScript-disabled context (`Image.decode()` never settles there), so the decode context keeps JS on; it only ever holds our own page.
+- **Convert:** `images.ts` (`imagePlan`, `objectFitRect`, `backgroundRect`, `placementPaint`). `<img>` and `url()` backgrounds become image paints (stretch / cover / cover + crop / contain / tile); failed images become placeholders; inline svg becomes a `VectorNode`. Raster islands remain only for undecoded or still-loading images and oversized svg.
+- **Plugin:** vectors via `createNodeFromSvg` (fallback PNG + `SVG_IMPORT_FAILED` if Figma rejects one); crop and stretch via CROP + `imageTransform`.
+- **Preview:** crops render as background size/position.
+- **Fixtures:** `image-heavy`, `svg-icons`. Visual diff: landing 0.01%, card-grid 0.02%, boxes 0.13% (unchanged), article 0.00%, image-heavy 0.09%, svg-icons 0.03%. The image-heavy bundle is 0.52 MB.
+- **To verify in Figma:** the CROP `imageTransform` direction (`img-cover-top`, `img-none` and `img-fill` show it: the red corner must stay top-left and `img-fill` must look stretched) and that the icons import as editable vectors with their colors.

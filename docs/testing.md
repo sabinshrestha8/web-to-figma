@@ -32,8 +32,8 @@ Full automation via the Figma REST images API is on the roadmap.
 | 5 | form | Inputs as boxes with placeholder text; native checkbox → `RASTERIZED` |
 | 6 | article ✓ | A wrapped paragraph with strong/em/link/colored span is one text node with a run per style; del/ins decorations; `<br>`; title text-shadow; padded `<code>` stays a box; an uninstalled font stays first in the stack for the font report (`fidelity.int.test.ts`) |
 | 7 | mobile | Captured at 390×844; vertical stacks |
-| 8 | image-heavy | object-fit cover/contain, bg images, WebP/AVIF → PNG, one broken image → `IMAGE_FAILED` |
-| 9 | svg-icons | Inline icons as editable vectors, `currentColor` resolved |
+| 8 | image-heavy ✓ | PNG/JPEG/WebP, `<picture>`, next/image, SVG-as-img, `data:` URL, lazy image below the fold, rounded+bordered avatar, a 5000 px image (downscaled to 4096); object-fit cover/cover-top (crop)/contain/fill/none (crop); background cover/contain/tile/gradient-over-image; one 404 → `IMAGE_FAILED` placeholder and no raster islands (`fidelity.int.test.ts`). Images generated with Chromium's canvas |
+| 9 | svg-icons ✓ | Stroke icons with `currentColor`, a class-set stroke width, a `<symbol>`/`<use>` sprite, class fills with a `display:none` shape, a gradient with a class-set `stop-color`, `<text>`, an inline icon; a hostile svg (script, `onload`/`onclick`, `<style>`, foreignObject, external `<image>`, `javascript:` link, `<animate>`). All become vectors with fallbacks; nothing hostile survives |
 | 10 | nested-complex | Deep nesting, absolute overlays, z-index ordering, margins → measured or absolute fallback |
 
 Each fixture's expectations will live in an `expect.ts` next to the page. For now (Phase 2, one fixture) they're in `capture.int.test.ts`.

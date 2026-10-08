@@ -16,7 +16,8 @@
 | Untrusted page JS | Chromium sandbox **on** (never `--no-sandbox`). A fresh `BrowserContext` per job: no profile, no user cookies, `serviceWorkers: "block"`, `acceptDownloads: false`, permissions denied, dialogs auto-dismissed, popups closed. |
 | Raster islands and tiles | Islands are screenshots of the already-loaded page, shown in isolation by an `!important` style the collector injects and removes afterwards. Page JS is still live, so a hostile page can change what its own crops show, but that only affects its own pixels, never anything outside the page. Pattern tiles render in a **separate context with JavaScript disabled and every request aborted**; their CSS is set through the DOM API (`style.backgroundImage`), never as markup, so a hostile `background-image` value can't inject elements or fetch anything. |
 | Preview / visual-diff harness | `previewScreenshot` loads the URL **without** the capture network policy, so it's a test harness for trusted fixture pages only. It isn't exported from `@w2f/capture` and no product path calls it. |
-| Untrusted SVG | Sanitized in the collector (script, foreignObject, `on*`, external refs removed). Figma's SVG parser doesn't execute script anyway. |
+| Untrusted SVG | Sanitized in the collector (`collector/svg.ts`, full list in mapping.md §1): `script`, `foreignObject`, `style`, `iframe`, animations, `on*`/`class`/`style` attributes, and every `href` or `url()` that isn't a fragment or an inline raster image are removed, so the markup can neither run nor fetch. Checked by the hostile icon in `fixtures/site/app/svg-icons` (and a mutation check: without the sanitizer that test fails). Figma's SVG parser doesn't execute script anyway; the preview shows vectors only through `<img>`, which never runs script. |
+| Untrusted images | Bytes are the page's own responses, kept by the network guard (no second fetch, so no new request the policy didn't see; `data:` URLs decoded in Node). The format is sniffed from the bytes. Decoding runs in a **separate context with every request aborted**, in a blank page holding only our decoder, one image at a time with a 10 s timeout; a crashed or stuck decoder page is replaced and only that image is lost. SVG images render through `<img>`, which never runs script or loads subresources. Size limits below are checked before (bytes) and after (pixels) decoding. |
 | Plugin input | `parseBundle` (Zod) is the only entry point. Node count ≤ 20,000. `createImage` re-validates the bytes. Manifest `networkAccess.allowedDomains: ["none"]`, so the plugin can't exfiltrate. |
 | Credentials | `--storage-state <file>` (local mode only): a Playwright storage state (cookies + localStorage) saved by the user with `pnpm w2f:login <url>`. It's Zod-validated on load, and errors name fields, never values. It's loaded into that capture's fresh context only. The browser's own cookie rules decide where cookies go (their domain), and cross-origin redirect hops drop `cookie`/`authorization` headers. It's never written to the bundle or logs: an integration test asserts the session token isn't in the bundle. |
 
@@ -30,9 +31,11 @@
 | Collector `evaluate` | 20 s | `TIMEOUT` |
 | Elements per page | 15,000 | `PAGE_TOO_LARGE` |
 | Capture height | 16,000 px | clip + `PAGE_HEIGHT_CLIPPED` |
-| Assets per page | 300 | extras → `ASSET_REJECTED` |
-| Bytes per asset | 10 MB | `ASSET_REJECTED` |
+| Images per capture (img, url() backgrounds, svg fallbacks) | 300 | extras → `ASSET_REJECTED` |
+| Bytes per image | 10 MB | `ASSET_REJECTED` |
+| Image response bytes held per capture | 100 MB | not kept → `ASSET_REJECTED` |
 | Decoded pixels per image | 50 MP (output ≤ 4096 px per side) | reject / downscale |
+| Decode time per image | 10 s | decoder page replaced, `ASSET_REJECTED` |
 | SVG markup | 500 KB | raster fallback |
 | Raster islands + tiles per capture | 200 | extras → `ASSET_REJECTED`, grey placeholder |
 | Raster side | 4096 px (device pixels, else CSS pixels) | `ASSET_REJECTED`, grey placeholder |

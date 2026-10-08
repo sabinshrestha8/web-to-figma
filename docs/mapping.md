@@ -22,18 +22,26 @@ This document is the contract for `packages/capture/collector`, `packages/conver
 
 **Colors.** Every color passes through a 1×1 canvas in the page (`fillStyle` → `fillRect` → `getImageData`). This turns `oklch()`, `lab()` and `color()` (Tailwind v4 emits oklch) into sRGB with no color library.
 
-**SVG.** Clone the element, then:
-- inline the computed `fill`, `stroke` and `color` (resolves `currentColor` and class styles);
-- inline `<use>` targets;
-- strip `script`, `foreignObject`, `on*` attributes and external hrefs;
-- cap the markup at 500 KB.
+**SVG** (`collector/svg.ts`). Each inline `<svg>` is serialized to standalone markup that needs nothing from the page:
+- Computed paint is written as presentation attributes: `color`, `fill`, `stroke` (+ width, opacity, linecap/linejoin, dasharray/offset, miterlimit), `fill-rule`, `clip-rule`, `visibility`, font properties, and `opacity`/`stop-color`/`stop-opacity`. Inherited ones only where they differ from the parent. This resolves classes, `currentColor` and Tailwind's oklch colors (normalized to rgba); lengths lose their `px`; `url(http://page/#id)` becomes `url(#id)`. The root's `opacity` goes to the vector node instead.
+- Shapes hidden with `display:none` are removed.
+- `<use href="#id">` is inlined (3 levels): a `<symbol>` becomes a nested `<svg>` with its viewBox, sized to the `<use>` or the root's user space; anything else is cloned into a `<g>` with the `x`/`y` translate. Targets may live in another svg (sprite sheets). Copied sprite content keeps its inline `style` paint as attributes (its classes are lost), and any `currentColor` left is replaced by the color in scope.
+- Removed: `script`, `foreignObject`, `style`, `iframe`, `animate*`/`set`, unresolved `use`; every `on*`, `class` and `style` attribute; every `href` that isn't `#…` or a `data:image/(png|jpeg|gif|webp)` URL; every other attribute holding a non-fragment `url()`.
+- `width`/`height` are set to the rendered size. Over 500 KB → no markup, and the svg becomes a raster island.
 
-**Assets.**
-- Image response bytes are captured at the network layer (no CORS issue) and keyed by URL.
-- They're transcoded to PNG and downscaled to ≤ 4096 px (Figma's `createImage` limit) via canvas in the same Chromium.
+**Images.**
+- `<img>`: the collector records `currentSrc` (so `srcset`/`<picture>`/next/image resolve to what the browser chose), `naturalWidth/Height` and a state: loaded, failed (complete with no size: 404, undecodable) or pending (still loading).
+- `imagePlan(snapshot)` (pure, in convert) lists what to decode: loaded `<img>` sources, `url()` background layers, and one fallback PNG per inline svg, each with the largest size it's drawn at.
+- Bytes come from the **network guard**: every image response the page loads is kept by URL (≤ 10 MB each, ≤ 100 MB per capture). `data:` URLs are decoded in Node. Nothing is fetched a second time.
+- `decodeImages` (`capture/src/images.ts`) sniffs the format from the bytes (not the server's Content-Type) and decodes each image in a blank page of a **separate browser context with every request aborted**, via `Image.decode()` on a blob URL, 10 s per image.
+  - PNG/JPEG/GIF within 4096 px a side pass through byte for byte.
+  - WebP/AVIF/BMP/ICO and oversize images are redrawn on a canvas, downscaled to ≤ 4096 px a side: JPEG (0.92) when fully opaque, else PNG.
+  - SVG (as `<img>`, as a background, or an inline svg's fallback) is rendered at its drawn size × dpr, as PNG.
+  - Over 50 MP decoded, unrecognized, or undecodable → `ASSET_REJECTED`.
 
 **Raster islands.** Some content can't be rebuilt from DOM facts, so it becomes a PNG drawn as an image paint (`scale: "stretch"`) and gets one `RASTERIZED` warning per reason. This covers:
-- `img`, `svg` (until Phase 5), `canvas`, `video`, `iframe`, `embed`, `object`;
+- `canvas`, `video`, `iframe`, `embed`, `object`;
+- `img` only while still loading or when its image couldn't be decoded; `svg` only when its markup is over 500 KB;
 - native checkboxes and radios (`appearance` ≠ none);
 - **leaf** elements with `clip-path`, `mask-image` or `border-image-source`.
 
@@ -62,7 +70,7 @@ How it works:
 | CSS (computed) | IR | Notes |
 |---|---|---|
 | rect + scroll offset | `bounds` | Rotated **leaves**: size from `offsetWidth/Height` (scale baked in), centered on the measured rect, `rotation` from `rotate` · `scale` · `transform`. Rotated containers are drawn unrotated. Skew, mirroring and 3D → `UNSUPPORTED_CSS` |
-| `background-color`, `background-image` | `fills[]` | CSS lists the top layer first; the IR stores bottom first. Linear and radial gradients map directly; `repeating-*` is approximated; conic and other functions → `UNSUPPORTED_CSS`; `url()` waits for Phase 5 |
+| `background-color`, `background-image` | `fills[]` | CSS lists the top layer first; the IR stores bottom first. Linear and radial gradients map directly; `repeating-*` is approximated; conic and other functions → `UNSUPPORTED_CSS`; `url()` → image paint (below) |
 | `border-*-width/style/color` | `stroke` | Color of the widest side; mixed colors → `BORDER_COLORS_MIXED`; double/groove/ridge/inset/outset → solid + `UNSUPPORTED_CSS`; `outline` → `UNSUPPORTED_CSS` |
 | `border-*-radius` | `radius` | `%` resolved against the box; CSS overlap scaling applied; elliptical → smaller radius + `UNSUPPORTED_CSS` |
 | `box-shadow` | `effects[]` drop/inner shadow | Bottom-most first (CSS lists the top shadow first). Transparent or zero shadows are dropped |
@@ -76,8 +84,19 @@ How it works:
 | `display:flex/grid` + related | `layout` candidate | Must pass verification (§3) |
 | font properties | `TextStyle` per run | One TextNode per run of inline content (§5). Inline elements with their own box (badge, padded `<code>`) break out as boxes |
 | `text-decoration-line` | `TextStyle.decoration` | Propagated to descendants (an underlined `<a>` underlines its `<strong>`), not into inline-blocks or out-of-flow boxes. Underline wins over line-through; overline and decoration color/thickness/style are dropped |
-| `<img>` + `object-fit/position` | `image` paint | cover→cover, contain→contain, fill→stretch, none→none, scale-down→contain |
+| `<img>` + `object-fit/position` | `image` paint over the element's own background | See **Image placement** below. A failed image → grey placeholder + `IMAGE_FAILED`. Padding on an `<img>` is drawn over (approximated) |
+| `url()` background + `background-size/position/repeat` | `image` paint | Same placement. Repeating with a tile smaller than the box → `tile` with `tileSize` (from the corner; an offset or `repeat-x/y/space/round` is approximated). An image the capture didn't get → `IMAGE_FAILED`, layer skipped |
+| inline `<svg>` | `VectorNode` (`svg` + `fallback` PNG) | Opacity, blend, shadows and filters from the element; a background or border on the `<svg>` itself is skipped (reported) |
 | `background-size/repeat/position` | `image` paint | cover/contain/repeat→tile; other sizes → approximated |
+
+**Image placement** (`packages/convert/src/images.ts`). The browser's rule gives the rect the image is drawn in, relative to the border box: `object-fit` (fill, contain, cover, none, scale-down) with `object-position`, or `background-size` (cover, contain, lengths, %, `auto` from the intrinsic size keeping its ratio) with `background-position`. Percent positions resolve against the free space, as in CSS. Then:
+- the rect is exactly the box → `stretch`;
+- it covers the box, centered with one axis exact → `cover`;
+- it covers the box otherwise (cover off-center, `none` larger than the box) → `cover` + `crop` (the visible part of the image as fractions);
+- it fits inside with one axis exact → `contain` (off-center: drawn centered, approximated);
+- anything leaving part of the box empty (a small `none` image, an unrepeated small background) → `contain`, approximated.
+
+For `<img>` the intrinsic size is the element's density-corrected natural size (`srcset 2x` is half its pixels).
 
 ## 3. Layout: verify, then fall back
 
@@ -119,13 +138,13 @@ The functions in `apps/figma-plugin/src/map/*.ts` are pure (IR → plain propert
 | `solid` | `SOLID` with `opacity = a` |
 | `linear` / `radial` | `GRADIENT_LINEAR` / `GRADIENT_RADIAL` with `gradientTransform` (formula below) |
 | `rotation` | `relativeTransform [[cos, −sin, tx], [sin, cos, ty]]` about the box center |
-| `image` | `figma.createImage(bytes).hash`. scaleMode: cover→FILL, contain→FIT, tile→TILE, stretch/none→CROP with `imageTransform` |
+| `image` | `figma.createImage(bytes).hash`. scaleMode: cover→FILL, contain→FIT, tile→TILE. With a `crop`, or `stretch`: CROP with `imageTransform [[w, 0, x], [0, h, y]]` (the crop fractions; identity for stretch) |
 | `stroke` | `strokes`, `strokeAlign = INSIDE`, `strokeTop/Right/Bottom/LeftWeight`, `dashPattern` (dashed `[3w, 3w]`, dotted `[w, w]`) |
 | `radius` | `topLeftRadius`, `topRightRadius`, `bottomRightRadius`, `bottomLeftRadius` |
 | effects | DROP_SHADOW / INNER_SHADOW (with `spread`; `radius` = CSS blur radius, 1:1), LAYER_BLUR / BACKGROUND_BLUR (the IR `radius` is already 2 × CSS `blur()` σ, set by the converter). Bottom-most first, like `fills` |
 | `image` with `scale: "tile"` | `TILE` with `scalingFactor = tileSize.width / asset pixel width` |
 | text | `createText()`. Fonts are loaded up front. Then `characters`, `setRangeFontName/FontSize/Fills/LetterSpacing/LineHeight/TextCase/TextDecoration` per run. `textAutoResize` WIDTH_AND_HEIGHT for one line, else HEIGHT with fixed width |
-| vector | `figma.createNodeFromSvg(svg)`. If it throws → raster crop + `SVG_IMPORT_FAILED` |
+| vector | `figma.createNodeFromSvg(svg)`, placed at its bounds. If it throws → a rectangle filled with the `fallback` PNG (`SVG_IMPORT_FAILED`, warning, rasterized), or grey without one (error, placeholder) |
 | blend mode | Same name, uppercased with `_` |
 
 **`gradientTransform`** maps layer space (0–1 on each axis) to gradient space, where the gradient runs along x from 0 to 1. It was checked against the known top→bottom matrix `[[0, 1, 0], [−1, 0, 1]]`.
@@ -134,6 +153,8 @@ The functions in `apps/figma-plugin/src/map/*.ts` are pure (IR → plain propert
   - Row 1 is `[w·dx/L, h·dy/L, 0.5 − (w·dx + h·dy)/(2L)]`.
   - Row 2 is the same for the perpendicular direction.
 - **Radial**, with center (cx, cy) and radii (rx, ry) as fractions of the box: `[[1/(2rx), 0, 0.5 − cx/(2rx)], [0, 1/(2ry), 0.5 − cy/(2ry)]]`.
+
+**`imageTransform`** (CROP) maps layer space (0–1) to image space (0–1): the layer's top-left corner shows image point (x, y), its bottom-right (x + w, y + h). Not yet verified in Figma (see the Phase 5 log).
 
 **Strokes** are `INSIDE`, which matches CSS borders. A box that clips its content gets its stroke drawn above the children: in Figma via the frame stroke, and in the preview via the overlay order. That way a clipped header doesn't cover the card's border.
 

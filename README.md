@@ -6,7 +6,7 @@ Convert a rendered React/Next.js page into an **editable** Figma design: real fr
 Rendered web UI → DOM + computed layout → UI IR (versioned, neutral) → Figma plugin → editable design
 ```
 
-**Status:** Phase 4 of 9: typography. Pages convert end to end with **absolute positioning**. Boxes carry borders, radii, gradients, shadows, blurs, opacity, blend, clipping, rotation and z-order. Each paragraph is one editable text layer with style runs (bold, italic, links, colors, decorations, text-shadow), and the plugin shows a font report before building. Images, SVG and canvas arrive as raster islands. Real images/vectors and Auto Layout come in later phases. See [docs/development.md](docs/development.md).
+**Status:** Phase 5 of 9: images & SVG. Pages convert end to end with **absolute positioning**. Boxes carry borders, radii, gradients, shadows, blurs, opacity, blend, clipping, rotation and z-order. Each paragraph is one editable text layer with style runs (bold, italic, links, colors, decorations, text-shadow), and the plugin shows a font report before building. Images are real image fills (object-fit and background sizing mapped, WebP/AVIF/oversize transcoded), and inline SVG icons are editable vectors. Canvas, video and iframes arrive as raster islands. Auto Layout comes in Phase 6. See [docs/development.md](docs/development.md).
 
 ## Quickstart (development)
 

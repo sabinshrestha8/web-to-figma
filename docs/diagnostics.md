@@ -32,9 +32,9 @@ Source: [`packages/ir/src/diagnostics.ts`](../packages/ir/src/diagnostics.ts). `
 | `BUNDLE_INVALID` | fatal | IR or bundle failed validation (the message carries the path) | — |
 | `SCHEMA_VERSION_UNSUPPORTED` | fatal | IR major version newer than this build, or no migration exists | — |
 | `FIGMA_BUILD_FAILED` | fatal | The plugin threw while creating nodes (error text in `message`); the partially built Section is removed | — |
-| `IMAGE_FAILED` | error | Image couldn't be fetched or decoded | placeholder |
-| `ASSET_REJECTED` | error | Asset over the size/pixel limits | placeholder |
-| `SVG_IMPORT_FAILED` | error | Figma rejected the SVG markup | rasterized |
+| `IMAGE_FAILED` | error | An `<img>` failed in the page (404, undecodable) → grey placeholder; a background image the capture didn't get → layer skipped; a raster island with no pixels | placeholder / skipped |
+| `ASSET_REJECTED` | error | An image or raster not used: over the size/pixel/count limits, unrecognized format, or not decodable by the isolated decoder. The element falls back to a raster island (img) or loses the layer (background) | placeholder |
+| `SVG_IMPORT_FAILED` | error | Figma rejected the SVG markup. With a fallback PNG it's built instead and reported as a warning; without one, a grey placeholder | rasterized / placeholder |
 | `FONT_SUBSTITUTED` | warning | The font used in Figma differs from the stack's first family, weight or italic (generic families like `sans-serif` always count). Once per requested style (family + weight + italic), also listed in the pre-build font report; `detail.from`/`detail.to`/`detail.runs` | substituted |
 | `UNSUPPORTED_CSS` | warning | A property with visible effect has no mapping (`detail.property`), or the plugin can't build an IR feature yet (`detail.feature`, once per build) | approximated / skipped |
 | `BORDER_COLORS_MIXED` | warning | Per-side border colors differ | approximated |
