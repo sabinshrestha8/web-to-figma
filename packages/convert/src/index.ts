@@ -3,6 +3,7 @@ import { type Capture, type Diagnostic, type Document, SCHEMA_VERSION } from "@w
 export * from "./box.ts";
 export * from "./css.ts";
 export * from "./images.ts";
+export * from "./layout.ts";
 export * from "./paint.ts";
 export * from "./rasters.ts";
 export * from "./scale.ts";
