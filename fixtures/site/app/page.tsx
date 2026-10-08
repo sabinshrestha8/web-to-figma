@@ -10,6 +10,7 @@ const ROUTES = [
   "/hostile/blocked-subresource",
   "/auth",
   "/app-shell",
+  "/article",
 ];
 
 export default function Index() {

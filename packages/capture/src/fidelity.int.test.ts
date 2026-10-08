@@ -1,5 +1,5 @@
 /// <reference path="../../../tests/fixture-server.ts" />
-import type { BoxNode, Bundle, Node } from "@w2f/ir";
+import type { BoxNode, Bundle, Node, TextNode } from "@w2f/ir";
 import { afterAll, describe, expect, inject, it } from "vitest";
 import { closeBrowser } from "./browser.ts";
 import { convertUrls } from "./run.ts";
@@ -81,9 +81,74 @@ describe("boxes fixture → IR", async () => {
   });
 });
 
+// Phase 4 DoD: paragraphs are single text nodes with correct style runs.
+describe("article fixture → IR", async () => {
+  const b = await bundle("article");
+  const texts = walk(b.ir.captures[0]!.root).filter((n): n is TextNode => n.type === "text");
+  const text = (start: string) => {
+    const found = texts.filter((t) => t.characters.startsWith(start));
+    if (found.length !== 1) throw new Error(`${found.length} text nodes start with "${start}"`);
+    return found[0]!;
+  };
+  /** The style of the run covering `word`, which must not straddle a run boundary. */
+  const styleOf = (t: TextNode, word: string) => {
+    const at = t.characters.indexOf(word);
+    const run = t.runs.find((r) => r.start <= at && at + word.length <= r.end);
+    if (at < 0 || !run) throw new Error(`"${word}" is not inside one run of "${t.name}"`);
+    return run.style;
+  };
+
+  it("draws the wrapped paragraph as one text node with a run per inline style", () => {
+    const intro = text("Converters work from");
+    expect(intro.characters).toBe(
+      "Converters work from what the browser drew, not from the source. A paragraph with emphasis, a link with bold inside and colored words still becomes a single text layer, wrapped at the same width as in the browser.",
+    );
+    expect(texts.filter((t) => t.source.selector === intro.source.selector)).toHaveLength(1);
+    expect(intro).toMatchObject({ autoResize: "height" });
+    expect(intro.lineCount).toBeGreaterThan(1);
+    const body = styleOf(intro, "Converters");
+    expect(body).toMatchObject({ weight: 400, italic: false, decoration: "none", size: 18, lineHeight: 32 });
+    expect(styleOf(intro, "what the browser drew").weight).toBe(700);
+    expect(styleOf(intro, "emphasis").italic).toBe(true);
+    const link = styleOf(intro, "link with ");
+    expect(link).toMatchObject({ decoration: "underline", weight: 400 });
+    expect(link.color).not.toEqual(body.color);
+    expect(styleOf(intro, "bold")).toMatchObject({ decoration: "underline", weight: 700, color: link.color });
+    expect(styleOf(intro, "colored words").color).not.toEqual(body.color);
+    expect(styleOf(intro, " still becomes")).toEqual(body);
+  });
+
+  it("maps del/ins decorations, <br> breaks and the title's text-shadow", () => {
+    const prices = text("Prices drop");
+    expect(styleOf(prices, "$40").decoration).toBe("line-through");
+    expect(styleOf(prices, "$25").decoration).toBe("underline");
+    expect(text("First line").characters).toBe("First line\nSecond line");
+    expect(text("Reading the rendered page").effects).toMatchObject([
+      { type: "shadow", offset: { x: 0, y: 2 }, blur: 4, color: { a: 0.25 } },
+    ]);
+    expect(b.ir.diagnostics.filter((d) => d.message.includes("text-shadow"))).toEqual([]);
+  });
+
+  it("keeps an inline element with its own box (code) as a box between text nodes", () => {
+    expect(["Run", "pnpm w2f", "against any page."].map((s) => text(s).characters)).toEqual([
+      "Run",
+      "pnpm w2f",
+      "against any page.",
+    ]);
+    const code = walk(b.ir.captures[0]!.root).find((n) => n.name.startsWith("code"));
+    expect(code?.type).toBe("box");
+  });
+
+  it("keeps the requested family first so the plugin can report it missing", () => {
+    expect(styleOf(text("This line asks"), "font").families[0]).toBe("W2F Missing Serif");
+    expect(styleOf(text("Field notes"), "Field").transform).toBe("uppercase");
+    expect(styleOf(text("Field notes"), "Field").letterSpacing).toBeGreaterThan(0);
+  });
+});
+
 // Phase 3 DoD: the IR, rendered back to HTML, differs from the original page by ≤5% of pixels.
 describe("visual diff: original page vs renderIRToHtml(IR)", () => {
-  it.each(["landing", "card-grid", "boxes"])("%s stays within the diff budget", async (route) => {
+  it.each(["landing", "card-grid", "boxes", "article"])("%s stays within the diff budget", async (route) => {
     const b = await bundle(route);
     const capture = b.ir.captures[0]!;
     const reference = Buffer.from(b.assetData[capture.screenshot!]!, "base64");
