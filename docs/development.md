@@ -146,3 +146,19 @@ Build a thin end-to-end slice early, then widen fidelity one area at a time.
 - **Preview:** crops render as background size/position.
 - **Fixtures:** `image-heavy`, `svg-icons`. Visual diff: landing 0.01%, card-grid 0.02%, boxes 0.13% (unchanged), article 0.00%, image-heavy 0.09%, svg-icons 0.03%. The image-heavy bundle is 0.52 MB.
 - **To verify in Figma:** the CROP `imageTransform` direction (`img-cover-top`, `img-none` and `img-fill` show it: the red corner must stay top-left and `img-fill` must look stretched) and that the icons import as editable vectors with their colors.
+
+### Phase 6: Layout engine (2026-10-08)
+
+- **Collector:** 25 new `STYLE_PROPS` (flex direction/wrap/justify/align/gaps/order/grow/shrink/basis/self, grid templates and placement, margins, box-sizing, width/height). Still ~85 whitelisted props, never the full ~300.
+- **`packages/convert/src/layout.ts`** (new): pure candidates + simulator, wired bottom-up into `snapshotToIR`.
+  - **Candidate A, from CSS intent:** flex direction (incl. reverse → reversed child order + `reverse`), padding, gap/crossGap, justify start/center/end/space-between, align start/center/end, flex-grow → main-axis `fill`, stretch → cross-axis `fill`. Anything else (space-around/evenly, baseline, wrap-reverse, per-item align-self) falls through to B.
+  - **Simulator:** Figma Auto Layout (padding, gap, alignment, fill distribution, greedy wrap) on the measured child sizes. Every in-flow child within **1 px** → accept; fill children must also size within 1 px.
+  - **Candidate B, from measurements:** monotonic stacking with a constant gap (±0.5 px) → gap; first offset → padding; consistent cross offsets/centers/ends → align. Covers block flow, margins, and space-evenly/around (read back as start + padding).
+  - **Grid:** explicit px tracks (or implicit rows from tallest child) with single-cell items → `grid` with fixed tracks + `gridCell`; spans fail to B/fallback.
+  - **Fallback:** `layout: none`, children absolute at measured coordinates, `LAYOUT_ABSOLUTE_FALLBACK` (info).
+  - Absolute/fixed children always stay absolute; `flatten` still runs first per mapping §3.
+- **Plugin:** pure `map/layout.ts` (`stackProps`/`gridProps`/`sizingProp`, table-tested) + `build.ts` applies stack/grid frame props, `strokesIncludedInLayout` when bordered, per-child sizing after append, `ABSOLUTE` + measured x/y for out-of-flow children, `appendChildAt` for grid cells. The `setGridChildPosition` API exists in typings 1.141 as documented (risk retired).
+- **Fixtures:** new `nav` (sticky space-between header, centered CTA row), `form` (vertical field stack, checkbox row, end-aligned actions; native checkbox → `RASTERIZED`), `dashboard` (sidebar + filling main, stat-card row with flex-grow, chart canvas → `RASTERIZED`).
+- **Verification:** layout asserts (nav stacks, card-grid 3-col grid, form stacks, dashboard shell + fill) in `fidelity.int.test.ts`. Visual diff, budget 5%: landing 0.01%, card-grid 0.02%, boxes 0.13%, article 0.00%, image-heavy 0.09%, svg-icons 0.03% (all identical to Phase 5), nav 0.01%, form 0.13%, dashboard 0.00%.
+- **To verify in Figma:** import a bundle and check the nav header resizes as a space-between stack, the card grid as fixed tracks, the dashboard main column fills, and that absolute children (e.g. badges) stay pinned.
+- No IR schema change (still 1.3).
