@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        font: 12px/1.5 Inter, system-ui, sans-serif;
+        color: var(--figma-color-text, #333);
+        background: var(--figma-color-bg, #fff);
+      }
+      #drop {
+        display: block;
+        padding: 32px 16px;
+        border: 1px dashed var(--figma-color-border, #ccc);
+        border-radius: 6px;
+        text-align: center;
+        cursor: pointer;
+      }
+      #drop.over {
+        border-color: var(--figma-color-border-brand, #0d99ff);
+      }
+      #file {
+        display: none;
+      }
+      ul {
+        margin: 8px 0 0;
+        padding: 0;
+        list-style: none;
+        max-height: 260px;
+        overflow: auto;
+      }
+      li {
+        padding: 4px 0;
+        border-bottom: 1px solid var(--figma-color-border, #eee);
+      }
+      li.fatal,
+      li.error {
+        color: var(--figma-color-text-danger, #c00);
+      }
+      li.warning {
+        color: var(--figma-color-text-warning, #a60);
+      }
+      #export {
+        margin-top: 12px;
+        font: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <label id="drop">
+      Drop a <b>.w2f.json</b> bundle here, or click to choose one.
+      <input id="file" type="file" accept=".json,application/json" />
+    </label>
+    <button id="export" type="button" title="For pnpm compare against the reference screenshot">
+      Export selected frame as PNG
+    </button>
+    <p id="status"></p>
+    <ul id="diagnostics"></ul>
+    <script>
+      /*UI_SCRIPT*/
+    </script>
+  </body>
+</html>
