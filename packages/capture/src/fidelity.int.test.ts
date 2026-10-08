@@ -250,26 +250,93 @@ describe("article fixture → IR", async () => {
   });
 });
 
+// Phase 6 DoD: nav, card-grid, form and dashboard come out as Auto Layout.
+describe("layout fixtures → IR", async () => {
+  const byId = (capture: Parameters<typeof walk>[0], id: string) => {
+    const n = walk(capture).find((x) => x.name.endsWith(` ${id}`));
+    if (n?.type !== "box") throw new Error(`no box named *${id}`);
+    return n as BoxNode;
+  };
+
+  it("builds the nav header as space-between stacks", async () => {
+    const b = await bundle("nav");
+    const root = b.ir.captures[0]!.root;
+    expect(byId(root, "site-header").layout).toMatchObject({
+      mode: "stack",
+      direction: "horizontal",
+      justify: "space-between",
+    });
+    expect(byId(root, "site-nav").layout).toMatchObject({ mode: "stack", direction: "horizontal" });
+    expect(byId(root, "cta-row").layout).toMatchObject({
+      mode: "stack",
+      direction: "horizontal",
+      justify: "center",
+    });
+  });
+
+  it("builds the card grid as a fixed-track grid", async () => {
+    const b = await bundle("card-grid");
+    const root = b.ir.captures[0]!.root;
+    const cards = walk(root).filter((n) => n.name === "article card");
+    expect(cards).toHaveLength(6);
+    const grid = byId(root, "card-grid");
+    if (grid.layout.mode !== "grid") throw new Error(`card grid is ${grid.layout.mode}, want grid`);
+    expect(grid.layout.columns).toHaveLength(3);
+    expect(cards.map((c) => c.position)).toEqual(Array(6).fill("flow"));
+  });
+
+  it("builds the form as nested stacks, with the checkbox as a raster island", async () => {
+    const b = await bundle("form");
+    const root = b.ir.captures[0]!.root;
+    expect(byId(root, "invite-form").layout).toMatchObject({ mode: "stack", direction: "vertical" });
+    expect(byId(root, "notify-row").layout).toMatchObject({ mode: "stack", direction: "horizontal" });
+    expect(byId(root, "form-actions").layout).toMatchObject({
+      mode: "stack",
+      direction: "horizontal",
+      justify: "end",
+    });
+    expect(b.ir.diagnostics.filter((d) => d.code === "RASTERIZED")).not.toEqual([]);
+  });
+
+  it("builds the dashboard shell as a stack with a filling main column", async () => {
+    const b = await bundle("dashboard");
+    const root = b.ir.captures[0]!.root;
+    expect(byId(root, "shell").layout).toMatchObject({ mode: "stack", direction: "horizontal" });
+    expect(byId(root, "main").sizing).toMatchObject({ horizontal: "fill" });
+    expect(byId(root, "stat-row").layout).toMatchObject({ mode: "stack", direction: "horizontal" });
+    const chart = byId(root, "chart");
+    expect(chart.fills[0]?.type).toBe("image");
+    expect(b.ir.diagnostics.filter((d) => d.code === "RASTERIZED")).not.toEqual([]);
+  });
+});
+
 // Phase 3 DoD: the IR, rendered back to HTML, differs from the original page by ≤5% of pixels.
 describe("visual diff: original page vs renderIRToHtml(IR)", () => {
-  it.each(["landing", "card-grid", "boxes", "article", "image-heavy", "svg-icons"])(
-    "%s stays within the diff budget",
-    async (route) => {
-      const b = await bundle(route);
-      const capture = b.ir.captures[0]!;
-      const reference = Buffer.from(b.assetData[capture.screenshot!]!, "base64");
-      const preview = await previewScreenshot(
-        `${base}/${route}`,
-        capture,
-        b.assetData,
-        reference.readUInt32BE(20),
-      );
-      const diff = await comparePngs(reference, preview);
-      console.log(`${route}: ${(diff.mismatch * 100).toFixed(2)}% of pixels differ`);
-      expect(diff.sizeDiffers).toBe(false);
-      expect(diff.mismatch).toBeLessThanOrEqual(0.05);
-    },
-  );
+  it.each([
+    "landing",
+    "card-grid",
+    "boxes",
+    "article",
+    "image-heavy",
+    "svg-icons",
+    "nav",
+    "form",
+    "dashboard",
+  ])("%s stays within the diff budget", async (route) => {
+    const b = await bundle(route);
+    const capture = b.ir.captures[0]!;
+    const reference = Buffer.from(b.assetData[capture.screenshot!]!, "base64");
+    const preview = await previewScreenshot(
+      `${base}/${route}`,
+      capture,
+      b.assetData,
+      reference.readUInt32BE(20),
+    );
+    const diff = await comparePngs(reference, preview);
+    console.log(`${route}: ${(diff.mismatch * 100).toFixed(2)}% of pixels differ`);
+    expect(diff.sizeDiffers).toBe(false);
+    expect(diff.mismatch).toBeLessThanOrEqual(0.05);
+  });
 
   it("detects a real difference (guards against comparing an image with itself)", async () => {
     const b = await bundle("card-grid");
