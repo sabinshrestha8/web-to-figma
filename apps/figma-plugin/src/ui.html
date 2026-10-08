@@ -42,9 +42,11 @@
       li.warning {
         color: var(--figma-color-text-warning, #a60);
       }
+      button {
+        font: inherit;
+      }
       #export {
         margin-top: 12px;
-        font: inherit;
       }
     </style>
   </head>
@@ -57,6 +59,10 @@
       Export selected frame as PNG
     </button>
     <p id="status"></p>
+    <div id="confirm" hidden>
+      <button id="build" type="button">Build</button>
+      <button id="cancel" type="button">Cancel</button>
+    </div>
     <ul id="diagnostics"></ul>
     <script>
       /*UI_SCRIPT*/

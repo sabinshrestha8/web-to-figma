@@ -1,10 +1,10 @@
-import type { TextStyle } from "@w2f/ir";
+import type { TextNode, TextStyle } from "@w2f/ir";
 import { describe, expect, it } from "vitest";
 import { blendMode, effects, rotatedTransform, strokeProps } from "./box.ts";
-import { indexFonts, parseStyleName, resolveFont } from "./fonts.ts";
+import { indexFonts, parseStyleName, planFonts, resolveFont } from "./fonts.ts";
 import { relative } from "./geometry.ts";
 import { linearTransform, paints, radialTransform } from "./paint.ts";
-import { runProps } from "./text.ts";
+import { reflowed, runProps } from "./text.ts";
 
 const available = indexFonts(
   [
@@ -227,6 +227,30 @@ describe("text", () => {
       textDecoration: "STRIKETHROUGH",
     });
     expect(runProps({ ...style, lineHeight: "auto" }).lineHeight).toEqual({ unit: "AUTO" });
+  });
+
+  it("flags TEXT_REFLOW only when the height is off by more than half a line", () => {
+    const t = {
+      bounds: { x: 0, y: 0, width: 300, height: 48 },
+      runs: [{ start: 0, end: 1, style }],
+    } as TextNode;
+    expect(reflowed(t, 48)).toBe(false);
+    expect(reflowed(t, 59)).toBe(false); // metric drift within a line
+    expect(reflowed(t, 72)).toBe(true); // wrapped onto a third line
+    expect(reflowed(t, 24)).toBe(true);
+  });
+});
+
+describe("font plan", () => {
+  it("resolves each style once and lists substitutions first with their run counts", () => {
+    const inter = { families: ["Inter"], weight: 400, italic: false };
+    const geist = { families: ["Geist", "sans-serif"], weight: 700, italic: false };
+    const { fonts, report } = planFonts([inter, geist, inter, inter], available);
+    expect(fonts.size).toBe(2);
+    expect(report).toEqual([
+      { requested: "Geist 700", font: "Inter Bold", substituted: true, runs: 1 },
+      { requested: "Inter 400", font: "Inter Regular", substituted: false, runs: 3 },
+    ]);
   });
 });
 

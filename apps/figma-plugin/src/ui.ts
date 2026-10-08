@@ -1,4 +1,5 @@
 import { type Diagnostic, parseBundle } from "@w2f/ir";
+import type { FontReportEntry } from "./map/fonts.ts";
 import type { ToCode, ToUI } from "./messages.ts";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -7,17 +8,44 @@ const input = $<HTMLInputElement>("file");
 const status = $<HTMLParagraphElement>("status");
 const list = $<HTMLUListElement>("diagnostics");
 const exportButton = $<HTMLButtonElement>("export");
+const confirm = $<HTMLDivElement>("confirm");
+/** The bundle's capture diagnostics, shown again with the build's own. */
+let captureDiagnostics: Diagnostic[] = [];
 
-function show(text: string, diagnostics: Diagnostic[] = []) {
-  status.textContent = text;
+const send = (m: ToCode) => parent.postMessage({ pluginMessage: m }, "*");
+
+function items(lines: { className: string; text: string }[]) {
   list.replaceChildren(
-    ...diagnostics.map((d) => {
+    ...lines.map(({ className, text }) => {
       const li = document.createElement("li");
-      li.className = d.severity;
-      li.textContent = `${d.severity} · ${d.code} — ${d.message}`;
+      li.className = className;
+      li.textContent = text;
       return li;
     }),
   );
+}
+
+function show(text: string, diagnostics: Diagnostic[] = []) {
+  status.textContent = text;
+  confirm.hidden = true;
+  items(
+    diagnostics.map((d) => ({ className: d.severity, text: `${d.severity} · ${d.code} — ${d.message}` })),
+  );
+}
+
+/** The font report: the user sees every substitution before anything is built. */
+function showFonts(fonts: FontReportEntry[]) {
+  const missing = fonts.filter((f) => f.substituted).length;
+  status.textContent = missing
+    ? `${missing} of ${fonts.length} font styles are not in Figma and will be substituted. Install them and drop the bundle again, or build now.`
+    : `All ${fonts.length} font styles are available.`;
+  items(
+    fonts.map((f) => ({
+      className: f.substituted ? "warning" : "",
+      text: `${f.requested} → ${f.font}${f.substituted ? " (substituted)" : ""} · ${f.runs} run(s)`,
+    })),
+  );
+  confirm.hidden = false;
 }
 
 function decode(base64: string): Uint8Array {
@@ -51,8 +79,9 @@ async function load(file: File) {
   if (!bundle.ok) return show(`${file.name} can't be imported.`, bundle.diagnostics);
   const { ir, assetData } = bundle.value;
   const assets = Object.fromEntries(Object.entries(assetData).map(([id, b64]) => [id, decode(b64)]));
-  show(`Building ${ir.captures.length} capture(s)…`, ir.diagnostics);
-  parent.postMessage({ pluginMessage: { type: "build", ir, assets } satisfies ToCode }, "*");
+  captureDiagnostics = ir.diagnostics;
+  show(`Checking fonts for ${ir.captures.length} capture(s)…`);
+  send({ type: "load", ir, assets });
 }
 
 input.addEventListener("change", () => {
@@ -71,8 +100,14 @@ drop.addEventListener("drop", (e) => {
   if (file) void load(file);
 });
 
-exportButton.addEventListener("click", () => {
-  parent.postMessage({ pluginMessage: { type: "export" } satisfies ToCode }, "*");
+exportButton.addEventListener("click", () => send({ type: "export" }));
+$<HTMLButtonElement>("build").addEventListener("click", () => {
+  show("Building…");
+  send({ type: "build" });
+});
+$<HTMLButtonElement>("cancel").addEventListener("click", () => {
+  show("Cancelled. Drop a bundle to start again.");
+  send({ type: "cancel" });
 });
 
 function download(name: string, png: Uint8Array) {
@@ -91,8 +126,12 @@ window.onmessage = (e: MessageEvent<{ pluginMessage?: ToUI }>) => {
     download(msg.name, msg.png);
     show(`Exported ${msg.name}.png — compare with: pnpm compare <reference.png> <export.png>`);
   } else if (msg.type === "export-failed") show(msg.message);
+  else if (msg.type === "fonts") showFonts(msg.fonts);
   else if (msg.type === "progress") show(`Building… ${msg.done} / ${msg.total} nodes`);
   else if (msg.type === "done")
-    show(`Built ${msg.nodes} nodes in ${(msg.ms / 1000).toFixed(1)}s.`, msg.diagnostics);
+    show(`Built ${msg.nodes} nodes in ${(msg.ms / 1000).toFixed(1)}s.`, [
+      ...captureDiagnostics,
+      ...msg.diagnostics,
+    ]);
   else show("Build failed.", msg.diagnostics);
 };

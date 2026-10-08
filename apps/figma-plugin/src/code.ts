@@ -1,4 +1,5 @@
-import { build } from "./build.ts";
+import type { Document } from "@w2f/ir";
+import { build, type FontPlan, planBuild } from "./build.ts";
 import type { ToCode, ToUI } from "./messages.ts";
 
 figma.showUI(__html__, { width: 380, height: 460, themeColors: true });
@@ -21,23 +22,40 @@ async function exportSelected() {
   post({ type: "exported", name: frame.name, png });
 }
 
+/** A loaded bundle waiting for the user to confirm its font report. */
+let pending: { ir: Document; assets: Record<string, Uint8Array>; plan: FontPlan } | null = null;
+
+const fail = (e: unknown) =>
+  post({
+    type: "failed",
+    diagnostics: [
+      { code: "FIGMA_BUILD_FAILED", severity: "fatal", message: e instanceof Error ? e.message : String(e) },
+    ],
+  });
+
 figma.ui.onmessage = async (msg: ToCode) => {
   if (msg.type === "export") return exportSelected();
-  if (msg.type !== "build") return;
+  if (msg.type === "cancel") {
+    pending = null;
+    return;
+  }
+  if (msg.type === "load") {
+    try {
+      const plan = await planBuild(msg.ir);
+      pending = { ir: msg.ir, assets: msg.assets, plan };
+      return post({ type: "fonts", fonts: plan.report });
+    } catch (e) {
+      return fail(e);
+    }
+  }
+  if (!pending) return;
+  const { ir, assets, plan } = pending;
+  pending = null;
   const started = Date.now();
   try {
-    const result = await build(msg.ir, msg.assets, (done, total) => post({ type: "progress", done, total }));
+    const result = await build(ir, assets, plan, (done, total) => post({ type: "progress", done, total }));
     post({ type: "done", nodes: result.nodes, ms: Date.now() - started, diagnostics: result.diagnostics });
   } catch (e) {
-    post({
-      type: "failed",
-      diagnostics: [
-        {
-          code: "FIGMA_BUILD_FAILED",
-          severity: "fatal",
-          message: e instanceof Error ? e.message : String(e),
-        },
-      ],
-    });
+    fail(e);
   }
 };

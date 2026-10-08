@@ -38,3 +38,14 @@ export function nodeProps(t: IRText) {
     textAutoResize: t.autoResize === "height" ? ("HEIGHT" as const) : ("WIDTH_AND_HEIGHT" as const),
   };
 }
+
+/**
+ * TEXT_REFLOW: Figma wrapped the text into a different number of lines than the browser did — its
+ * height differs from the IR's by more than half a line (font metrics, kerning, a substituted font).
+ */
+export function reflowed(t: IRText, figmaHeight: number): boolean {
+  const s = t.runs[0]?.style;
+  if (!s) return false;
+  const line = s.lineHeight === "auto" ? s.size * 1.2 : s.lineHeight;
+  return Math.abs(figmaHeight - t.bounds.height) > line / 2;
+}

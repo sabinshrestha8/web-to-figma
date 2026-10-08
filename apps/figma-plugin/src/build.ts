@@ -1,9 +1,9 @@
 import type { BoxNode, Capture, Diagnostic, Document, TextNode as IRText, Node, Rect } from "@w2f/ir";
 import { blendMode, effects, rotatedTransform, strokeProps } from "./map/box.ts";
-import { type FontIndex, fontKey, indexFonts, resolveFont } from "./map/fonts.ts";
+import { type FontReportEntry, fontKey, indexFonts, planFonts, styleKey } from "./map/fonts.ts";
 import { relative } from "./map/geometry.ts";
 import { paints } from "./map/paint.ts";
-import { nodeProps, runProps } from "./map/text.ts";
+import { nodeProps, reflowed, runProps } from "./map/text.ts";
 
 const CHUNK = 200;
 const CAPTURE_GAP = 200;
@@ -22,6 +22,8 @@ interface Ctx {
   assets: Document["assets"];
   diagnostics: Diagnostic[];
   reported: Set<string>;
+  /** Text nodes Figma wrapped differently (TEXT_REFLOW), reported once with a count. */
+  reflowed: IRText[];
   built: number;
   total: number;
   progress: (done: number, total: number) => void;
@@ -40,12 +42,9 @@ function unbuilt(ctx: Ctx, feature: string, node: Node) {
   );
 }
 
-const styleKey = (s: { families: string[]; weight: number; italic: boolean }) =>
-  `${s.families.join(",")}|${s.weight}|${s.italic}`;
-
 function fontFor(ctx: Ctx, style: Parameters<typeof styleKey>[0]): FontName {
   const font = ctx.fonts.get(styleKey(style));
-  if (!font) throw new Error(`font for ${styleKey(style)} was not prepared`); // prepareFonts bug
+  if (!font) throw new Error(`font for ${styleKey(style)} was not prepared`); // planBuild bug
   return font;
 }
 
@@ -54,33 +53,28 @@ function* walk(n: Node): Generator<Node> {
   if (n.type === "box") for (const c of n.children) yield* walk(c);
 }
 
-/** Resolve every text style to an available font and load each font once. */
-async function prepareFonts(ir: Document, ctx: Ctx) {
-  const index: FontIndex = indexFonts(await figma.listAvailableFontsAsync());
-  const loads = new Map<string, FontName>();
-  const substitutedFamilies = new Set<string>();
-  for (const capture of ir.captures) {
-    for (const n of walk(capture.root)) {
-      if (n.type !== "text") continue;
-      for (const run of n.runs) {
-        const key = styleKey(run.style);
-        if (ctx.fonts.has(key)) continue;
-        const { font, substitutedFrom } = resolveFont(run.style, index);
-        ctx.fonts.set(key, font);
-        loads.set(fontKey(font), font);
-        if (substitutedFrom && !substitutedFamilies.has(substitutedFrom)) {
-          substitutedFamilies.add(substitutedFrom);
-          ctx.diagnostics.push(
-            diagnostic("FONT_SUBSTITUTED", `${substitutedFrom} → ${font.family} ${font.style}`, {
-              fallback: "substituted",
-              detail: { from: substitutedFrom, to: `${font.family} ${font.style}` },
-            }),
-          );
-        }
-      }
-    }
-  }
-  await Promise.all([...loads.values()].map((f) => figma.loadFontAsync(f)));
+export interface FontPlan {
+  fonts: Map<string, FontName>;
+  report: FontReportEntry[];
+}
+
+/** Resolve every text style to an available font, for the report the user confirms before building. */
+export async function planBuild(ir: Document): Promise<FontPlan> {
+  const styles = ir.captures.flatMap((c) =>
+    [...walk(c.root)].flatMap((n) => (n.type === "text" ? n.runs.map((r) => r.style) : [])),
+  );
+  return planFonts(styles, indexFonts(await figma.listAvailableFontsAsync()));
+}
+
+function fontDiagnostics(plan: FontPlan): Diagnostic[] {
+  return plan.report
+    .filter((f) => f.substituted)
+    .map((f) =>
+      diagnostic("FONT_SUBSTITUTED", `${f.requested} → ${f.font}`, {
+        fallback: "substituted",
+        detail: { from: f.requested, to: f.font, runs: f.runs },
+      }),
+    );
 }
 
 function place(node: SceneNode & LayoutMixin, n: Node, parent: Rect) {
@@ -129,6 +123,7 @@ function buildText(n: IRText, parent: Rect, ctx: Ctx): TextNode {
     t.resize(r.width, r.height); // fixes the wrap width; HEIGHT then lets Figma own the height
   }
   t.textAutoResize = textAutoResize;
+  if (reflowed(n, t.height)) ctx.reflowed.push(n);
   return t;
 }
 
@@ -194,19 +189,22 @@ function referenceLayer(capture: Capture, ir: Document, ctx: Ctx): RectangleNode
 export async function build(
   ir: Document,
   assets: Record<string, Uint8Array>,
+  plan: FontPlan,
   progress: (done: number, total: number) => void,
 ): Promise<{ nodes: number; diagnostics: Diagnostic[] }> {
   const ctx: Ctx = {
-    fonts: new Map(),
+    fonts: plan.fonts,
     images: new Map(),
     assets: ir.assets,
-    diagnostics: [],
+    diagnostics: fontDiagnostics(plan),
     reported: new Set(),
+    reflowed: [],
     built: 0,
     total: ir.captures.reduce((s, c) => s + [...walk(c.root)].length, 0),
     progress,
   };
-  await prepareFonts(ir, ctx);
+  const loads = new Map([...plan.fonts.values()].map((f) => [fontKey(f), f]));
+  await Promise.all([...loads.values()].map((f) => figma.loadFontAsync(f)));
   for (const [id, bytes] of Object.entries(assets)) ctx.images.set(id, figma.createImage(bytes).hash);
 
   const section = figma.createSection();
@@ -229,6 +227,16 @@ export async function build(
   } catch (e) {
     section.remove(); // no half-built output
     throw e;
+  }
+  const [example] = ctx.reflowed;
+  if (example) {
+    ctx.diagnostics.push(
+      diagnostic(
+        "TEXT_REFLOW",
+        `${ctx.reflowed.length} text node(s) wrap to a different height than in the browser, e.g. "${example.name}"`,
+        { nodeId: example.id, fallback: "approximated", detail: { count: ctx.reflowed.length } },
+      ),
+    );
   }
   figma.currentPage.selection = [section];
   figma.viewport.scrollAndZoomIntoView([section]);

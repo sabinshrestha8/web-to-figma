@@ -89,3 +89,48 @@ const describe = (s: Pick<TextStyle, "families" | "weight" | "italic">) =>
   `${s.families[0] ?? "?"} ${s.weight}${s.italic ? " italic" : ""}`;
 
 export const fontKey = (f: FontName) => `${f.family}\u0000${f.style}`;
+
+type FontStyle = Pick<TextStyle, "families" | "weight" | "italic">;
+
+export const styleKey = (s: FontStyle) => `${s.families.join(",")}|${s.weight}|${s.italic}`;
+
+/** One line of the pre-build font report: what the page asked for and what Figma will use. */
+export interface FontReportEntry {
+  requested: string;
+  font: string;
+  substituted: boolean;
+  /** Text runs using it. */
+  runs: number;
+}
+
+/**
+ * Resolve every distinct text style once: the fonts to load (by style key) and the report the user
+ * sees before building, substitutions first so missing fonts can be installed and the build rerun.
+ */
+export function planFonts(
+  styles: Iterable<FontStyle>,
+  index: FontIndex,
+): { fonts: Map<string, FontName>; report: FontReportEntry[] } {
+  const fonts = new Map<string, FontName>();
+  const entries = new Map<string, FontReportEntry>();
+  for (const style of styles) {
+    const key = styleKey(style);
+    const known = entries.get(key);
+    if (known) {
+      known.runs++;
+      continue;
+    }
+    const { font, substitutedFrom } = resolveFont(style, index);
+    fonts.set(key, font);
+    entries.set(key, {
+      requested: describe(style),
+      font: `${font.family} ${font.style}`,
+      substituted: substitutedFrom !== undefined,
+      runs: 1,
+    });
+  }
+  const report = [...entries.values()].sort(
+    (a, b) => Number(b.substituted) - Number(a.substituted) || b.runs - a.runs,
+  );
+  return { fonts, report };
+}
