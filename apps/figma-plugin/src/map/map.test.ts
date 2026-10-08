@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { blendMode, effects, rotatedTransform, strokeProps } from "./box.ts";
 import { indexFonts, parseStyleName, planFonts, resolveFont } from "./fonts.ts";
 import { relative } from "./geometry.ts";
+import { gridProps, sizingProp, stackProps } from "./layout.ts";
 import { linearTransform, paints, radialTransform } from "./paint.ts";
 import { reflowed, runProps } from "./text.ts";
 
@@ -299,5 +300,69 @@ describe("geometry", () => {
       width: 0.01,
       height: 20,
     });
+  });
+});
+
+describe("layout", () => {
+  it("maps stacks to Auto Layout props with stroke-aware layout inclusion", () => {
+    expect(
+      stackProps(
+        {
+          mode: "stack",
+          direction: "horizontal",
+          reverse: true,
+          wrap: true,
+          gap: 32,
+          crossGap: 10,
+          padding: { top: 5, right: 40, bottom: 5, left: 40 },
+          justify: "space-between",
+          align: "center",
+        },
+        true,
+      ),
+    ).toEqual({
+      layoutMode: "HORIZONTAL",
+      layoutWrap: "WRAP",
+      itemSpacing: 32,
+      counterAxisSpacing: 10,
+      paddingTop: 5,
+      paddingRight: 40,
+      paddingBottom: 5,
+      paddingLeft: 40,
+      primaryAxisAlignItems: "SPACE_BETWEEN",
+      counterAxisAlignItems: "CENTER",
+      itemReverseZIndex: true,
+      strokesIncludedInLayout: true,
+    });
+    expect(
+      stackProps(
+        {
+          mode: "stack",
+          direction: "vertical",
+          reverse: false,
+          wrap: false,
+          gap: 0,
+          crossGap: 0,
+          padding: { top: 0, right: 0, bottom: 0, left: 0 },
+          justify: "start",
+          align: "start",
+        },
+        false,
+      ),
+    ).toMatchObject({ layoutMode: "VERTICAL", primaryAxisAlignItems: "MIN", strokesIncludedInLayout: false });
+  });
+
+  it("maps grids to fixed tracks and sizing to Figma names", () => {
+    expect(
+      gridProps({
+        mode: "grid",
+        columns: [{ size: 200 }, { size: 200 }],
+        rows: [{ size: 100 }],
+        columnGap: 20,
+        rowGap: 30,
+        padding: { top: 0, right: 0, bottom: 0, left: 0 },
+      }),
+    ).toMatchObject({ columnCount: 2, rowCount: 1, columnSizes: [200, 200], columnGap: 20 });
+    expect([sizingProp("fixed"), sizingProp("hug"), sizingProp("fill")]).toEqual(["FIXED", "HUG", "FILL"]);
   });
 });

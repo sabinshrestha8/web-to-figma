@@ -11,6 +11,7 @@ import type {
 import { blendMode, effects, rotatedTransform, strokeProps } from "./map/box.ts";
 import { type FontReportEntry, fontKey, indexFonts, planFonts, styleKey } from "./map/fonts.ts";
 import { relative } from "./map/geometry.ts";
+import { gridProps, sizingProp, stackProps } from "./map/layout.ts";
 import { paints } from "./map/paint.ts";
 import { nodeProps, reflowed, runProps } from "./map/text.ts";
 
@@ -181,13 +182,75 @@ async function buildBox(n: BoxNode, parent: Rect, ctx: Ctx): Promise<FrameNode |
     node.dashPattern = s.dashPattern;
   }
   if (node.type === "FRAME") {
+    applyLayout(node, n);
     node.clipsContent = n.clip;
     for (const child of n.children) {
       const built = await buildNode(child, n.bounds, ctx);
-      if (built) node.appendChild(built);
+      if (!built) continue;
+      if (node.layoutMode === "GRID" && child.gridCell) {
+        node.appendChildAt(built, child.gridCell.row, child.gridCell.column);
+      } else {
+        node.appendChild(built);
+      }
+      placeInAutoLayout(built, child, n);
     }
   }
   return node;
+}
+
+/** Verified IR layout → Figma frame props. `none` leaves an absolutely positioned frame. */
+function applyLayout(frame: FrameNode, n: BoxNode) {
+  const hasStroke = n.stroke !== undefined;
+  if (n.layout.mode === "stack") {
+    const p = stackProps(n.layout, hasStroke);
+    frame.layoutMode = p.layoutMode;
+    frame.layoutWrap = p.layoutWrap;
+    frame.itemSpacing = p.itemSpacing;
+    frame.counterAxisSpacing = p.counterAxisSpacing;
+    frame.paddingTop = p.paddingTop;
+    frame.paddingRight = p.paddingRight;
+    frame.paddingBottom = p.paddingBottom;
+    frame.paddingLeft = p.paddingLeft;
+    frame.primaryAxisAlignItems = p.primaryAxisAlignItems;
+    frame.counterAxisAlignItems = p.counterAxisAlignItems;
+    frame.itemReverseZIndex = p.itemReverseZIndex;
+    frame.strokesIncludedInLayout = p.strokesIncludedInLayout;
+  } else if (n.layout.mode === "grid") {
+    const p = gridProps(n.layout);
+    frame.layoutMode = "GRID";
+    frame.gridColumnCount = p.columnCount;
+    frame.gridRowCount = p.rowCount;
+    frame.gridColumnGap = p.columnGap;
+    frame.gridRowGap = p.rowGap;
+    frame.paddingTop = p.paddingTop;
+    frame.paddingRight = p.paddingRight;
+    frame.paddingBottom = p.paddingBottom;
+    frame.paddingLeft = p.paddingLeft;
+    frame.gridColumnSizes.forEach((t, i) => {
+      t.type = "FIXED";
+      t.value = p.columnSizes[i] ?? 0;
+    });
+    frame.gridRowSizes.forEach((t, i) => {
+      t.type = "FIXED";
+      t.value = p.rowSizes[i] ?? 0;
+    });
+  }
+}
+
+/**
+ * After appendChild, an auto-layout child takes its IR sizing; absolute children pin to their
+ * measured spot relative to the parent. Sizing is set after append, per the Figma docs.
+ */
+function placeInAutoLayout(built: SceneNode, child: Node, parent: BoxNode) {
+  if (!("layoutSizingHorizontal" in built)) return;
+  built.layoutSizingHorizontal = sizingProp(child.sizing.horizontal);
+  built.layoutSizingVertical = sizingProp(child.sizing.vertical);
+  if (child.position === "absolute" || child.position === "fixed") {
+    built.layoutPositioning = "ABSOLUTE";
+    const r = relative(child.bounds, parent.bounds);
+    built.x = r.x;
+    built.y = r.y;
+  }
 }
 
 async function buildNode(n: Node, parent: Rect, ctx: Ctx): Promise<SceneNode | null> {
