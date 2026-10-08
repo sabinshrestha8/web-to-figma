@@ -72,6 +72,8 @@ export const STYLE_PROPS = [
   "clip-path",
   "mask-image",
   "appearance",
+  "object-fit",
+  "object-position",
 ] as const;
 export type StyleProp = (typeof STYLE_PROPS)[number];
 
@@ -92,6 +94,9 @@ export const EMBEDDED_COLOR_PROPS = [
   "background-image",
 ] as const satisfies readonly StyleProp[];
 
+/** Same cap as the IR's VectorNode.svg. */
+export const MAX_SVG_CHARS = 500_000;
+
 export interface RawElement {
   kind: "element";
   id: number;
@@ -103,6 +108,10 @@ export interface RawElement {
   attrs: { id?: string; className?: string; ariaLabel?: string; testId?: string; type?: string };
   /** Untransformed layout size (offsetWidth/Height); only recorded when transform/rotate/scale is set. */
   layoutSize?: { width: number; height: number };
+  /** `<img>`: the source the browser picked (currentSrc) and its intrinsic size in CSS px. */
+  image?: { src: string; width: number; height: number; state: "loaded" | "failed" | "pending" };
+  /** Inline `<svg>`: sanitized markup with computed paint inlined. Absent when over `MAX_SVG_CHARS`. */
+  svg?: string;
 }
 
 export interface RawText {

@@ -5,6 +5,8 @@ import { parseAngle, parseColor, parseLength, round4, splitTop } from "./css.ts"
 export type BackgroundLayer =
   | { kind: "paint"; paint: Paint; approximated?: string }
   | { kind: "tile"; css: string; width: number; height: number; approximated?: string }
+  /** An image layer, placed once its intrinsic size is known (see images.ts). */
+  | { kind: "url"; url: string; size: string; position: string; repeat: string }
   | { kind: "unsupported"; reason: string };
 
 type Stop = { position: number; color: RGBA };
@@ -176,8 +178,16 @@ export function backgroundLayers(
     const m = /^([a-z-]+)\((.*)\)$/s.exec(layer.trim());
     const fn = m?.[1] ?? "";
     const args = m?.[2] ?? "";
-    if (fn === "url")
-      return { kind: "unsupported", reason: "background-image url() (images arrive in Phase 5)" };
+    if (fn === "url") {
+      const url = /^(["']?)(.*)\1$/s.exec(args.trim())?.[2] ?? "";
+      return {
+        kind: "url",
+        url,
+        size: cycle(sizes, i),
+        position: cycle(positions, i),
+        repeat: cycle(repeats, i),
+      };
+    }
     if (!/^(repeating-)?(linear|radial)-gradient$/.test(fn)) {
       return { kind: "unsupported", reason: `background-image ${fn || layer}()` };
     }

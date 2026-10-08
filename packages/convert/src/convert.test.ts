@@ -1,10 +1,15 @@
 import { type BoxNode, parseDocument, type TextNode } from "@w2f/ir";
 import { describe, expect, it } from "vitest";
 import {
+  backgroundRect,
+  backgroundUrls,
   groupLines,
+  imagePlan,
   nextFontFamily,
+  objectFitRect,
   parseColor,
   parseFontFamilies,
+  placementPaint,
   px,
   rasterPlan,
   scalePx,
@@ -90,6 +95,8 @@ const defaults: Record<StyleProp, string> = {
   "text-transform": "none",
   "text-decoration-line": "none",
   "vertical-align": "baseline",
+  "object-fit": "fill",
+  "object-position": "50% 50%",
   ...Object.fromEntries(
     ["top", "right", "bottom", "left"].flatMap((side) => [
       [`border-${side}-style`, "none"],
@@ -402,7 +409,7 @@ describe("snapshotToIR box fidelity", () => {
     const nodes = all(convert(snap).capture.root);
     expect(box(nodes.find((n) => n.type === "box" && n.radius[0] > 0)).radius[0]).toBe(8);
     expect((nodes.find((n) => n.type === "text") as TextNode).runs[0]?.style.size).toBe(10);
-    expect(rasterPlan(snap, 16_000)).toEqual([
+    expect(rasterPlan(snap, 16_000, () => false)).toEqual([
       expect.objectContaining({ kind: "tile", width: 10, height: 10, css: expect.stringContaining("0.5px") }),
     ]);
     expect(scalePx('url("a-10px.png"), linear-gradient(red 4px, blue)', 0.5)).toBe(
@@ -421,7 +428,7 @@ describe("snapshotToIR box fidelity", () => {
       el(body.id, "img", { x: 0, y: 200, width: 64, height: 64 }),
     ]);
     const asset = "a".repeat(64);
-    const plan = rasterPlan(snap, 16_000);
+    const plan = rasterPlan(snap, 16_000, () => false);
     expect(plan.map((r) => r.key)).toEqual(["el:2", "el:3"]);
     const { capture, diagnostics } = snapshotToIR(snap, {
       captureId: "c1",
@@ -455,7 +462,7 @@ describe("snapshotToIR box fidelity", () => {
         ),
       ),
     );
-    const plan = rasterPlan(snap, 16_000);
+    const plan = rasterPlan(snap, 16_000, () => false);
     expect(plan).toEqual(
       [2, 3, 4].map((id) => expect.objectContaining({ key: `tile:${id}:0`, kind: "tile", width: 16 })),
     );
@@ -654,5 +661,177 @@ describe("inline formatting contexts", () => {
       "Inter",
       "sans-serif",
     ]);
+  });
+});
+
+// --- images and vectors (Phase 5) ---------------------------------------------------------------
+
+describe("image placement", () => {
+  const box = { x: 0, y: 0, width: 240, height: 160 };
+  const portrait = { width: 300, height: 450 };
+
+  it.each([
+    ["fill", "50% 50%", { x: 0, y: 0, width: 240, height: 160 }],
+    ["contain", "50% 50%", { x: 66.67, y: 0, width: 106.67, height: 160 }],
+    ["cover", "50% 50%", { x: 0, y: -100, width: 240, height: 360 }],
+    ["cover", "50% 0%", { x: 0, y: 0, width: 240, height: 360 }],
+    ["none", "50% 50%", { x: -30, y: -145, width: 300, height: 450 }],
+    ["scale-down", "50% 50%", { x: 66.67, y: 0, width: 106.67, height: 160 }],
+    ["cover", "10px 20px", { x: 10, y: 20, width: 240, height: 360 }],
+  ])("object-fit %s at %s", (fit, position, expected) => {
+    const r = objectFitRect(fit, position, box, portrait);
+    expect(r).not.toBeNull();
+    for (const k of ["x", "y", "width", "height"] as const) expect(r?.[k]).toBeCloseTo(expected[k], 1);
+  });
+
+  it("maps drawn rects to paints: stretch, centered cover, crop, contain", () => {
+    const paint = (r: { x: number; y: number; width: number; height: number }) =>
+      placementPaint("a", r, 240, 160);
+    expect(paint({ x: 0, y: 0, width: 240, height: 160 }).paint.scale).toBe("stretch");
+    expect(paint({ x: 0, y: -100, width: 240, height: 360 })).toEqual({
+      paint: { type: "image", assetId: "a", scale: "cover", position: { x: 0.5, y: 0.5 } },
+    });
+    expect(paint({ x: 0, y: 0, width: 240, height: 360 }).paint.crop).toEqual({
+      x: 0,
+      y: 0,
+      width: 1,
+      height: 0.4444,
+    });
+    expect(paint({ x: -30, y: -145, width: 300, height: 450 }).paint.crop).toEqual({
+      x: 0.1,
+      y: 0.3222,
+      width: 0.8,
+      height: 0.3556,
+    });
+    expect(paint({ x: 66.67, y: 0, width: 106.67, height: 160 })).toEqual({
+      paint: { type: "image", assetId: "a", scale: "contain", position: { x: 0.5, y: 0.5 } },
+    });
+    expect(paint({ x: 0, y: 0, width: 106.67, height: 160 }).approximated).toMatch(/off-center/);
+    expect(paint({ x: 100, y: 60, width: 40, height: 40 }).approximated).toMatch(/empty/);
+  });
+
+  it.each([
+    ["cover", { width: 240, height: 360 }],
+    ["contain", { width: 106.67, height: 160 }],
+    ["auto", { width: 300, height: 450 }],
+    ["24px 24px", { width: 24, height: 24 }],
+    ["auto 80px", { width: 53.33, height: 80 }],
+    ["50% auto", { width: 120, height: 180 }],
+  ])("background-size %s", (size, expected) => {
+    const r = backgroundRect(size, "0% 0%", box, portrait);
+    expect(r?.width).toBeCloseTo(expected.width, 1);
+    expect(r?.height).toBeCloseTo(expected.height, 1);
+  });
+
+  it("reads url() layers out of a computed background-image", () => {
+    expect(backgroundUrls('linear-gradient(red, blue), url("http://a/b.png"), url(c.jpg)')).toEqual([
+      null,
+      "http://a/b.png",
+      "c.jpg",
+    ]);
+    expect(backgroundUrls("none")).toEqual([]);
+  });
+});
+
+describe("snapshotToIR: images and vectors", () => {
+  const asset = (id: string, width: number, height: number) => ({ assetId: id.repeat(64), width, height });
+
+  it("draws decoded images as fills, failed ones as placeholders, and plans what to decode", () => {
+    const snap = page((body) => {
+      const ok = el(
+        body.id,
+        "img",
+        { x: 0, y: 0, width: 240, height: 160 },
+        { "object-fit": "cover", "object-position": "50% 0%", "background-color": "rgb(226, 232, 240)" },
+      );
+      ok.image = { src: "http://x/p.jpg", width: 300, height: 450, state: "loaded" };
+      const broken = el(body.id, "img", { x: 0, y: 200, width: 100, height: 100 });
+      broken.image = { src: "http://x/missing.png", width: 0, height: 0, state: "failed" };
+      const lazy = el(body.id, "img", { x: 0, y: 400, width: 100, height: 100 });
+      lazy.image = { src: "http://x/lazy.png", width: 0, height: 0, state: "pending" };
+      const tiled = el(
+        body.id,
+        "div",
+        { x: 300, y: 0, width: 100, height: 100 },
+        { "background-image": 'url("http://x/dot.png")', "background-size": "24px 24px" },
+      );
+      const gone = el(
+        body.id,
+        "div",
+        { x: 300, y: 200, width: 100, height: 100 },
+        { "background-image": 'url("http://x/gone.png")', "background-color": "rgb(0, 0, 0)" },
+      );
+      return [ok, broken, lazy, tiled, gone];
+    });
+    expect(imagePlan(snap, 16_000).map((r) => r.key)).toEqual([
+      "http://x/p.jpg",
+      "http://x/dot.png",
+      "http://x/gone.png",
+    ]);
+    const images = { "http://x/p.jpg": asset("a", 300, 450), "http://x/dot.png": asset("b", 48, 48) };
+    const hasImage = (k: string) => k in images;
+    expect(rasterPlan(snap, 16_000, hasImage).map((r) => r.key)).toEqual(["el:4"]); // only the lazy one
+    const { capture, diagnostics } = snapshotToIR(snap, { captureId: "c1", maxHeight: 16_000, images });
+    const [ok, broken, , tiled, gone] = all(capture.root).filter((n) => n.name !== "body") as BoxNode[];
+    expect(ok?.fills).toEqual([
+      { type: "solid", color: { r: 0.8863, g: 0.9098, b: 0.9412, a: 1 } },
+      {
+        type: "image",
+        assetId: "a".repeat(64),
+        scale: "cover",
+        position: { x: 0.5, y: 0.5 },
+        crop: { x: 0, y: 0, width: 1, height: 0.4444 },
+      },
+    ]);
+    expect(broken?.fills).toEqual([{ type: "solid", color: { r: 0.85, g: 0.85, b: 0.85, a: 1 } }]);
+    expect(tiled?.fills).toEqual([
+      {
+        type: "image",
+        assetId: "b".repeat(64),
+        scale: "tile",
+        position: { x: 0, y: 0 },
+        tileSize: { width: 24, height: 24 },
+      },
+    ]);
+    expect(gone?.fills.map((f) => f.type)).toEqual(["solid"]);
+    expect(diagnostics.map((d) => [d.code, d.fallback])).toEqual([
+      ["IMAGE_FAILED", "placeholder"],
+      ["IMAGE_FAILED", "placeholder"], // the lazy one: no island pixels in this test
+      ["IMAGE_FAILED", "skipped"],
+    ]);
+  });
+
+  it("turns svg markup into a vector node with its fallback, and oversized svgs into islands", () => {
+    const markup =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><path d="M0 0h24v24z"/></svg>';
+    const snap = page((body) => {
+      const icon = el(body.id, "svg", { x: 10, y: 10, width: 24, height: 24 }, { opacity: "0.5" });
+      icon.svg = markup;
+      const huge = el(body.id, "svg", { x: 50, y: 10, width: 24, height: 24 });
+      return [icon, huge];
+    });
+    expect(imagePlan(snap, 16_000)).toEqual([{ key: "svg:2", kind: "svg", markup, width: 24, height: 24 }]);
+    expect(rasterPlan(snap, 16_000, () => false).map((r) => r.key)).toEqual(["el:3"]);
+    const c = "c".repeat(64);
+    const d = "d".repeat(64);
+    const { capture } = snapshotToIR(snap, {
+      captureId: "c1",
+      maxHeight: 16_000,
+      images: { "svg:2": asset("c", 24, 24) },
+      rasters: { "el:3": d },
+    });
+    const body = capture.root.children[0];
+    const [vector, island] = body?.type === "box" ? body.children : [];
+    expect(vector).toMatchObject({
+      type: "vector",
+      svg: markup,
+      fallback: c,
+      opacity: 0.5,
+      bounds: { x: 10, y: 10, width: 24, height: 24 },
+    });
+    expect(island).toMatchObject({ type: "box", fills: [{ type: "image", scale: "stretch" }] });
+    const meta = { mime: "image/png" as const, width: 24, height: 24, byteLength: 10 };
+    const doc = toDocument([capture], { [c]: meta, [d]: meta }, []);
+    expect(parseDocument(JSON.parse(JSON.stringify(doc))).ok).toBe(true);
   });
 });

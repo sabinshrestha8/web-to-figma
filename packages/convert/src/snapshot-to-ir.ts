@@ -1,10 +1,19 @@
-import { type BoxNode, type Capture, type Diagnostic, diag, type Node, type Paint } from "@w2f/ir";
+import {
+  type BoxNode,
+  type Capture,
+  type Diagnostic,
+  diag,
+  type Node,
+  type Paint,
+  type VectorNode,
+} from "@w2f/ir";
 import { parseColor, round2 } from "./css.ts";
+import type { ImageAsset } from "./images.ts";
 import { islandReason } from "./rasters.ts";
 import { createReport } from "./report.ts";
 import { bakeScale } from "./scale.ts";
 import type { RawElement, RawSnapshot, RawText } from "./snapshot.ts";
-import { boxStyle, islandStyle } from "./style.ts";
+import { boxStyle, islandStyle, type StyleContext } from "./style.ts";
 import { decorationResolver, type InlineGroup, inlineGroups, inlineText } from "./text.ts";
 
 export interface ConvertOptions {
@@ -14,6 +23,8 @@ export interface ConvertOptions {
   screenshot?: string;
   /** Raster key → asset id for the requests from `rasterPlan` that the capture step fulfilled. */
   rasters?: Record<string, string>;
+  /** Image key → decoded image for the requests from `imagePlan` that the capture step fulfilled. */
+  images?: Record<string, ImageAsset>;
 }
 
 export interface ConvertResult {
@@ -91,6 +102,8 @@ export function snapshotToIR(raw: RawSnapshot, opts: ConvertOptions): ConvertRes
   const { captureId } = opts;
   const report = createReport(captureId);
   const rasters = opts.rasters ?? {};
+  const images = opts.images ?? {};
+  const hasImage = (key: string) => key in images;
   const children = new Map<number, (RawElement | RawText)[]>();
   const elements = new Map<number, RawElement>();
   let rootEl: RawElement | undefined;
@@ -145,10 +158,11 @@ export function snapshotToIR(raw: RawSnapshot, opts: ConvertOptions): ConvertRes
     if (Number.parseFloat(n.style.opacity) === 0) return null;
 
     const nodeId = `${captureId}:${n.id}`;
-    const ctx = { nodeId, report, rasters };
+    const ctx = { nodeId, report, rasters, images };
     const visible = n.style.visibility === "visible";
     const rawKids = children.get(n.id) ?? [];
-    const island = n.rect.width >= 1 && n.rect.height >= 1 ? islandReason(n, rawKids.length === 0) : null;
+    const island =
+      n.rect.width >= 1 && n.rect.height >= 1 ? islandReason(n, rawKids.length === 0, hasImage) : null;
     if (!island && visible && rawKids.length > 0) {
       for (const p of ["clip-path", "mask-image", "border-image-source"] as const) {
         if (n.style[p] !== "none" && n.style[p] !== "") {
@@ -156,6 +170,7 @@ export function snapshotToIR(raw: RawSnapshot, opts: ConvertOptions): ConvertRes
         }
       }
     }
+    if (n.svg && !island) return vector(n, n.svg, ctx, visible);
     const kids = island ? [] : convertAll(n);
     const style = island
       ? islandStyle(n, ctx, island)
@@ -176,6 +191,31 @@ export function snapshotToIR(raw: RawSnapshot, opts: ConvertOptions): ConvertRes
       children: kids,
     };
     return flatten(box);
+  };
+
+  /** Inline svg → an editable vector, with a PNG of the same markup if Figma rejects it. */
+  const vector = (n: RawElement, svg: string, ctx: StyleContext, visible: boolean): VectorNode | null => {
+    if (!visible) return null;
+    const style = boxStyle(n, ctx, { leaf: true, visible, withColor: true });
+    if (style.fills.length > 0 || style.stroke) {
+      report.add("UNSUPPORTED_CSS", "background or border on an <svg> element", ctx.nodeId, "skipped");
+    }
+    const fallback = images[`svg:${n.id}`]?.assetId;
+    return {
+      id: ctx.nodeId,
+      type: "vector",
+      name: nameOf(n),
+      bounds: style.bounds,
+      ...(style.rotation !== undefined ? { rotation: style.rotation } : {}),
+      opacity: Math.min(1, Math.max(0, Number.parseFloat(n.style.opacity) || 1)),
+      blendMode: style.blendMode,
+      effects: style.effects,
+      position: n.style.position === "absolute" || n.style.position === "fixed" ? n.style.position : "flow",
+      sizing: { horizontal: "fixed", vertical: "fixed" },
+      source: { tag: n.tag, selector: selectorOf(n) },
+      svg,
+      ...(fallback ? { fallback } : {}),
+    };
   };
 
   const root: BoxNode = {

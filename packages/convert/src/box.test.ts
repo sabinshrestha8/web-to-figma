@@ -65,8 +65,9 @@ describe("gradients", () => {
       300,
       200,
     );
-    expect(layers.map((l) => l.kind)).toEqual(["tile", "paint", "unsupported", "unsupported"]);
+    expect(layers.map((l) => l.kind)).toEqual(["tile", "paint", "url", "unsupported"]);
     expect(layers[0]).toMatchObject({ width: 16, height: 16 });
+    expect(layers[2]).toMatchObject({ kind: "url", url: "a.png" });
   });
 
   it("flags repeating gradients and offset tiles as approximations", () => {

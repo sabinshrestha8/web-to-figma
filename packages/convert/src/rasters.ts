@@ -19,12 +19,22 @@ const PIXEL_ONLY = ["clip-path", "mask-image", "border-image-source"] as const;
 
 /**
  * Why an element is drawn as a screenshot crop (a "raster island"), or null.
- * Replaced content can't be rebuilt from DOM facts; clip-path/mask/border-image can't be expressed in
- * Figma. The latter only on leaves (`leaf`: no child nodes), so text inside never becomes pixels.
+ * Replaced content can't be rebuilt from DOM facts (images and svgs: only when not decoded or too
+ * big); clip-path/mask/border-image can't be expressed in Figma. The latter only on leaves (`leaf`:
+ * no child nodes), so text inside never becomes pixels.
  */
-export function islandReason(el: RawElement, leaf: boolean): string | null {
+export function islandReason(
+  el: RawElement,
+  leaf: boolean,
+  hasImage: (key: string) => boolean,
+): string | null {
   if (el.style.visibility !== "visible") return null;
-  if (el.tag === "img" || el.tag === "svg") return `<${el.tag}> (real images and vectors arrive in Phase 5)`;
+  if (el.tag === "img") {
+    if (el.image?.state === "failed") return null; // a placeholder: the page shows no image either
+    if (el.image?.state === "pending") return "<img> still loading at capture time";
+    return el.image && hasImage(el.image.src) ? null : "<img> whose image could not be decoded";
+  }
+  if (el.tag === "svg") return el.svg ? null : "<svg> markup over the size cap";
   if (REPLACED.has(el.tag)) return `<${el.tag}> content`;
   if (
     el.tag === "input" &&
@@ -39,7 +49,11 @@ export function islandReason(el: RawElement, leaf: boolean): string | null {
 }
 
 /** Every raster the converter will ask for, skipping what it won't draw (opacity 0, below the height cap). */
-export function rasterPlan(raw: RawSnapshot, maxHeight: number): RasterRequest[] {
+export function rasterPlan(
+  raw: RawSnapshot,
+  maxHeight: number,
+  hasImage: (key: string) => boolean,
+): RasterRequest[] {
   const snap = bakeScale(raw);
   const parents = new Set(snap.nodes.map((n) => n.parent));
   const skipped = new Set<number>();
@@ -51,7 +65,7 @@ export function rasterPlan(raw: RawSnapshot, maxHeight: number): RasterRequest[]
       continue;
     }
     if (n.rect.y >= maxHeight || n.rect.width < 1 || n.rect.height < 1) continue;
-    if (islandReason(n, !parents.has(n.id))) {
+    if (islandReason(n, !parents.has(n.id), hasImage)) {
       skipped.add(n.id); // an island's descendants are inside its pixels
       out.push({ key: `el:${n.id}`, kind: "element", id: n.id, rect: n.rect });
       continue;
