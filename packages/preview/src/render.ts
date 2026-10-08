@@ -35,6 +35,12 @@ function background(p: Paint, w: number, h: number, assets: Record<string, strin
       const pos = `${n2(p.position.x * 100)}% ${n2(p.position.y * 100)}%`;
       if (p.scale === "tile" && p.tileSize)
         return `${url} 0 0 / ${p.tileSize.width}px ${p.tileSize.height}px repeat`;
+      if (p.crop) {
+        // The visible part of the image spans the box: scale the whole image up to match.
+        const iw = w / p.crop.width;
+        const ih = h / p.crop.height;
+        return `${url} ${n2(-p.crop.x * iw)}px ${n2(-p.crop.y * ih)}px / ${n2(iw)}px ${n2(ih)}px no-repeat`;
+      }
       const size = { cover: "cover", contain: "contain", stretch: "100% 100%", tile: "auto", none: "auto" }[
         p.scale
       ];
