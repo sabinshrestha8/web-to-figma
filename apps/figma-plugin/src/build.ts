@@ -207,8 +207,12 @@ export async function build(
   await Promise.all([...loads.values()].map((f) => figma.loadFontAsync(f)));
   for (const [id, bytes] of Object.entries(assets)) ctx.images.set(id, figma.createImage(bytes).hash);
 
+  // Each import goes to the right of everything already on the page, never on top of an earlier one.
+  const right = Math.max(0, ...figma.currentPage.children.map((n) => n.x + n.width + CAPTURE_GAP));
   const section = figma.createSection();
   section.name = `web-to-figma · ${ir.captures[0]?.title ?? "import"}`;
+  section.x = right;
+  section.y = 0;
   try {
     let x = 0;
     let height = 0;
