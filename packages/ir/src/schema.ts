@@ -2,9 +2,10 @@ import { z } from "zod";
 import { Diagnostic } from "./diagnostics.ts";
 
 /** Current IR version. Minor = additive optional fields; major = breaking, needs a migration. */
-export const SCHEMA_VERSION = "1.2";
+export const SCHEMA_VERSION = "1.3";
 // 1.1: optional `tileSize` on image paints.
 // 1.2: diagnostic code SCROLL_CONTAINER_EXPANDED.
+// 1.3: optional `crop` on image paints, optional `fallback` raster on vector nodes.
 
 // All lengths are CSS px. Colors are sRGB floats 0–1.
 const num = z.number().finite();
@@ -41,6 +42,11 @@ export const Paint = z.discriminatedUnion("type", [
     position: Point, // object-position / background-position as a fraction
     /** CSS px size of one tile when scale is "tile" (the asset may be denser, e.g. 2× on retina). */
     tileSize: z.object({ width: num.positive(), height: num.positive() }).optional(),
+    /**
+     * The part of the image visible in the box, as fractions of the image (x, y, width, height).
+     * Set when `scale` alone can't say it: stretch, or cover/none at an off-center position.
+     */
+    crop: z.object({ x: num, y: num, width: num.positive(), height: num.positive() }).optional(),
   }),
 ]);
 export type Paint = z.infer<typeof Paint>;
@@ -175,6 +181,8 @@ export const VectorNode = z.object({
   ...base,
   type: z.literal("vector"),
   svg: z.string().min(1).max(500_000),
+  /** PNG of the same markup, built instead if Figma rejects the SVG. */
+  fallback: AssetId.optional(),
 });
 export type VectorNode = z.infer<typeof VectorNode>;
 
@@ -235,6 +243,7 @@ export const Document = z
       if (ids.has(n.id))
         ctx.addIssue({ code: "custom", path: ["captures"], message: `duplicate node id ${n.id}` });
       ids.add(n.id);
+      if (n.type === "vector" && n.fallback) need(n.fallback, `node ${n.id}`);
       if (n.type !== "box") return;
       for (const p of n.fills) if (p.type === "image") need(p.assetId, `node ${n.id}`);
       for (const c of n.children) visit(c);
