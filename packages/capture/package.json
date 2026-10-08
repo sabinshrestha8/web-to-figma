@@ -1,0 +1,20 @@
+{
+  "name": "@w2f/capture",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@w2f/convert": "workspace:*",
+    "@w2f/ir": "workspace:*",
+    "@w2f/preview": "workspace:*",
+    "esbuild": "0.28.2",
+    "playwright": "1.64.0",
+    "zod": "4.6.5"
+  }
+}
