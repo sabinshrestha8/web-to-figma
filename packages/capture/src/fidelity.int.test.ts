@@ -130,10 +130,10 @@ describe("article fixture → IR", async () => {
   });
 
   it("keeps an inline element with its own box (code) as a box between text nodes", () => {
-    expect(["Run", "pnpm w2f", "against any page."].map((s) => text(s).characters)).toEqual([
+    expect(["Run", "pnpm w2f", " against any page."].map((s) => text(s).characters)).toEqual([
       "Run",
       "pnpm w2f",
-      "against any page.",
+      " against any page.",
     ]);
     const code = walk(b.ir.captures[0]!.root).find((n) => n.name.startsWith("code"));
     expect(code?.type).toBe("box");

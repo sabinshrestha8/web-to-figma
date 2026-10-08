@@ -11,6 +11,8 @@ export type KidsOf = (el: RawElement) => (RawElement | RawText)[];
 export interface InlineGroup {
   kind: "inline";
   nodes: (RawElement | RawText)[];
+  /** Follows an inline box on the same line: its leading space is drawn (and inside its rect). */
+  afterInlineBox: boolean;
 }
 
 export interface TextContext {
@@ -87,14 +89,20 @@ export function inlineGroups(
 ): (RawElement | InlineGroup)[] {
   const out: (RawElement | InlineGroup)[] = [];
   let group: InlineGroup | null = null;
+  let prev: RawElement | null = null;
   for (const k of kids) {
     if (k.kind === "element" && !isPlainInline(k, root, kidsOf)) {
       group = null;
+      prev = k;
       out.push(k);
       continue;
     }
     if (!group) {
-      group = { kind: "inline", nodes: [] };
+      group = {
+        kind: "inline",
+        nodes: [],
+        afterInlineBox: prev?.style.display.startsWith("inline") ?? false,
+      };
       out.push(group);
     }
     group.nodes.push(k);
@@ -192,7 +200,7 @@ function segments(nodes: (RawElement | RawText)[], el: RawElement, kidsOf: KidsO
 const sameStyle = (a: TextStyle, b: TextStyle) => JSON.stringify(a) === JSON.stringify(b);
 
 /** Characters and style runs of a group, with white space collapsed across element boundaries. */
-function characterRuns(segs: Segment[], collapsible: boolean, ctx: TextContext) {
+function characterRuns(segs: Segment[], collapsible: boolean, keepLeadingSpace: boolean, ctx: TextContext) {
   let characters = "";
   const runs: TextRun[] = [];
   const dropLast = () => {
@@ -203,7 +211,8 @@ function characterRuns(segs: Segment[], collapsible: boolean, ctx: TextContext) 
   for (const seg of segs) {
     let t = seg.text;
     if (collapsible) {
-      if (t.startsWith(" ") && (characters === "" || /[ \n]$/.test(characters))) t = t.slice(1);
+      const lineStart = characters === "" ? !keepLeadingSpace : /[ \n]$/.test(characters);
+      if (t.startsWith(" ") && lineStart) t = t.slice(1);
       if (t.startsWith("\n") && characters.endsWith(" ")) dropLast(); // a space before a break is not drawn
     }
     if (!t) continue;
@@ -233,7 +242,7 @@ export function inlineText(group: InlineGroup, root: RawElement, ctx: TextContex
   if (!first || !head || first.y >= ctx.maxY) return null;
 
   const collapsible = !/^(pre|pre-wrap|break-spaces)$/.test(root.style["white-space"]);
-  const { characters, runs } = characterRuns(segs, collapsible, ctx);
+  const { characters, runs } = characterRuns(segs, collapsible, group.afterInlineBox, ctx);
   if (!characters.trim() || runs.every((r) => r.style.color.a === 0)) return null;
 
   const id = `${ctx.captureId}:${head.id}`;

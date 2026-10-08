@@ -575,8 +575,23 @@ describe("inline formatting contexts", () => {
       ];
     });
     const root = convert(snap).capture.root;
-    expect(texts(snap).map((t) => t.characters)).toEqual(["Run", "pnpm", "now"]);
+    // The space after an inline box is drawn (and inside the rect " now" starts at): keep it.
+    expect(texts(snap).map((t) => t.characters)).toEqual(["Run", "pnpm", " now"]);
     expect(all(root).find((n) => n.name === "code")?.type).toBe("box");
+  });
+
+  it("drops the leading space of text that starts a line after a block", () => {
+    const snap = page((body) => {
+      const div = el(body.id, "div", { x: 0, y: 0, width: 600, height: 48 });
+      const block = el(
+        div.id,
+        "div",
+        { x: 0, y: 0, width: 600, height: 24 },
+        { "background-color": "rgb(240, 240, 240)" },
+      );
+      return [div, block, txt(block.id, "Above", [line(0, 40)]), txt(div.id, " below ", [line(0, 40, 27)])];
+    });
+    expect(texts(snap).map((t) => t.characters)).toEqual(["Above", "below"]);
   });
 
   it("collapses white space across elements and turns <br> into a line break", () => {
