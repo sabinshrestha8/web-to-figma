@@ -11,6 +11,8 @@ const ROUTES = [
   "/auth",
   "/app-shell",
   "/article",
+  "/image-heavy",
+  "/svg-icons",
 ];
 
 export default function Index() {

@@ -49,6 +49,16 @@
           }
         }
       }
+    },
+    {
+      "includes": ["fixtures/site/app/image-heavy/**"],
+      "linter": {
+        "rules": {
+          "performance": {
+            "noImgElement": "off"
+          }
+        }
+      }
     }
   ]
 }

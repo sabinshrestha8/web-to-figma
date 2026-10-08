@@ -71,13 +71,117 @@ describe("boxes fixture → IR", async () => {
     expect(byId("stack").children.map((c) => c.name)).toEqual(["div z-bottom", "div z-top"]);
   });
 
-  it("draws img, svg, canvas and a native checkbox as raster islands", () => {
-    for (const id of ["img", "svg", "chart", "checkbox"]) {
+  it("draws canvas and a native checkbox as raster islands; img and svg are real images and vectors", () => {
+    for (const id of ["img", "chart", "checkbox"]) {
       const fill = byId(id).fills[0];
       expect(fill?.type, id).toBe("image");
       if (fill?.type === "image") expect(b.assetData[fill.assetId], id).toBeTruthy();
     }
-    expect(b.ir.diagnostics.filter((d) => d.code === "RASTERIZED")).toHaveLength(4);
+    expect(walk(capture.root).find((n) => n.name === "svg svg")?.type).toBe("vector");
+    expect(b.ir.diagnostics.filter((d) => d.code === "RASTERIZED")).toHaveLength(2);
+  });
+});
+
+// Phase 5 DoD: no broken images on image-heavy; icons are editable vectors.
+describe("image-heavy fixture → IR", async () => {
+  const b = await bundle("image-heavy");
+  const nodes = walk(b.ir.captures[0]!.root);
+  const imageOf = (id: string) => {
+    const n = nodes.find((x) => x.name.endsWith(` ${id}`));
+    if (n?.type !== "box") throw new Error(`no box named *${id}`);
+    const paint = n.fills.find((f) => f.type === "image");
+    if (paint?.type !== "image") throw new Error(`${id} has no image fill`);
+    return { paint, asset: b.ir.assets[paint.assetId]!, data: b.assetData[paint.assetId] };
+  };
+  const IMAGES = ["png", "cover", "cover-top", "contain", "fill", "none", "webp", "picture", "next"]
+    .concat(["avatar", "svg", "data", "oversize", "lazy"])
+    .map((s) => `img-${s}`);
+
+  it("turns every loaded image into an image fill with its bytes, never a raster island", () => {
+    for (const id of [...IMAGES, "bg-cover", "bg-contain", "bg-tile", "bg-layered"]) {
+      const { data, asset } = imageOf(id);
+      expect(data, id).toBeTruthy();
+      expect(Math.max(asset.width, asset.height), id).toBeLessThanOrEqual(4096);
+    }
+    expect(b.ir.diagnostics.filter((d) => d.code === "RASTERIZED")).toEqual([]);
+    expect(b.ir.diagnostics.filter((d) => d.code === "ASSET_REJECTED")).toEqual([]);
+  });
+
+  it("reports the 404 image once, as a grey placeholder", () => {
+    const failed = b.ir.diagnostics.filter((d) => d.code === "IMAGE_FAILED");
+    expect(failed).toHaveLength(1);
+    expect(failed[0]).toMatchObject({
+      fallback: "placeholder",
+      message: expect.stringContaining("missing.png"),
+    });
+  });
+
+  it("maps object-fit and background sizing to scale modes and crops", () => {
+    expect(imageOf("img-cover").paint).toMatchObject({ scale: "cover" });
+    expect(imageOf("img-cover").paint.crop).toBeUndefined();
+    expect(imageOf("img-cover-top").paint).toMatchObject({
+      scale: "cover",
+      crop: { x: 0, y: 0, width: 1, height: 0.4444 },
+    });
+    expect(imageOf("img-contain").paint.scale).toBe("contain");
+    expect(imageOf("img-fill").paint.scale).toBe("stretch");
+    expect(imageOf("img-none").paint.crop).toMatchObject({ width: 0.3, height: 0.2667 });
+    expect(imageOf("bg-cover").paint.scale).toBe("cover");
+    expect(imageOf("bg-contain").paint.scale).toBe("contain");
+    expect(imageOf("bg-tile").paint).toMatchObject({ scale: "tile", tileSize: { width: 24, height: 24 } });
+  });
+
+  it("transcodes what Figma can't take: WebP, SVG-as-img, oversize", () => {
+    expect(imageOf("img-webp").asset.mime).toBe("image/jpeg"); // opaque → JPEG
+    expect(imageOf("img-svg").asset).toMatchObject({ mime: "image/png", width: 96, height: 96 });
+    expect(imageOf("img-oversize").asset).toMatchObject({ width: 4096, height: 328 });
+    expect(imageOf("img-png").asset).toMatchObject({ mime: "image/png", width: 480, height: 320 }); // as served
+  });
+});
+
+describe("svg-icons fixture → IR", async () => {
+  const b = await bundle("svg-icons");
+  const vectors = walk(b.ir.captures[0]!.root).filter((n) => n.type === "vector");
+  const svgOf = (id: string) => {
+    const v = vectors.find((n) => n.name === `svg ${id}`);
+    if (v?.type !== "vector") throw new Error(`no vector ${id}`);
+    return v;
+  };
+
+  it("draws every visible icon as a vector with a PNG fallback", () => {
+    expect(vectors.map((v) => v.name.replace("svg ", "")).sort()).toEqual(
+      ["icon-home", "icon-bell", "icon-check", "icon-sprite", "icon-filled", "icon-gradient", "icon-text"]
+        .concat(["hostile", "icon-inline"])
+        .sort(),
+    );
+    for (const v of vectors) {
+      expect(v.type === "vector" && v.fallback && b.assetData[v.fallback], v.name).toBeTruthy();
+    }
+  });
+
+  it("resolves currentColor, classes, sprites and display:none into plain attributes", () => {
+    const home = svgOf("icon-home").svg;
+    expect(home).toMatch(/stroke="rgba\(\d+, \d+, \d+, 1\)"/);
+    expect(home).toContain('stroke-width="2"');
+    expect(svgOf("icon-check").svg).toContain('stroke-width="3"'); // from a class
+    const sprite = svgOf("icon-sprite").svg;
+    expect(sprite).toContain("<path");
+    expect(sprite).not.toMatch(/<use|currentColor/i);
+    const filled = svgOf("icon-filled").svg;
+    expect(filled).not.toContain("<rect"); // display:none
+    expect(filled).not.toContain("class=");
+    expect(svgOf("icon-gradient").svg).toMatch(/<linearGradient[^>]*>.*stop-color="rgba?\(/);
+    expect(svgOf("icon-gradient").svg).toContain('fill="url(#grad)"');
+  });
+
+  it("strips scripts, handlers, foreignObject, styles, animations and external references", () => {
+    for (const v of vectors) {
+      if (v.type !== "vector") continue;
+      expect(v.svg, v.name).not.toMatch(
+        /<script|<foreignObject|<style|<animate|\son\w+=|javascript:|127\.0\.0\.1:9/i,
+      );
+    }
+    expect(svgOf("hostile").svg).toContain("<circle");
   });
 });
 
@@ -148,21 +252,24 @@ describe("article fixture → IR", async () => {
 
 // Phase 3 DoD: the IR, rendered back to HTML, differs from the original page by ≤5% of pixels.
 describe("visual diff: original page vs renderIRToHtml(IR)", () => {
-  it.each(["landing", "card-grid", "boxes", "article"])("%s stays within the diff budget", async (route) => {
-    const b = await bundle(route);
-    const capture = b.ir.captures[0]!;
-    const reference = Buffer.from(b.assetData[capture.screenshot!]!, "base64");
-    const preview = await previewScreenshot(
-      `${base}/${route}`,
-      capture,
-      b.assetData,
-      reference.readUInt32BE(20),
-    );
-    const diff = await comparePngs(reference, preview);
-    console.log(`${route}: ${(diff.mismatch * 100).toFixed(2)}% of pixels differ`);
-    expect(diff.sizeDiffers).toBe(false);
-    expect(diff.mismatch).toBeLessThanOrEqual(0.05);
-  });
+  it.each(["landing", "card-grid", "boxes", "article", "image-heavy", "svg-icons"])(
+    "%s stays within the diff budget",
+    async (route) => {
+      const b = await bundle(route);
+      const capture = b.ir.captures[0]!;
+      const reference = Buffer.from(b.assetData[capture.screenshot!]!, "base64");
+      const preview = await previewScreenshot(
+        `${base}/${route}`,
+        capture,
+        b.assetData,
+        reference.readUInt32BE(20),
+      );
+      const diff = await comparePngs(reference, preview);
+      console.log(`${route}: ${(diff.mismatch * 100).toFixed(2)}% of pixels differ`);
+      expect(diff.sizeDiffers).toBe(false);
+      expect(diff.mismatch).toBeLessThanOrEqual(0.05);
+    },
+  );
 
   it("detects a real difference (guards against comparing an image with itself)", async () => {
     const b = await bundle("card-grid");

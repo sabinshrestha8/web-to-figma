@@ -99,7 +99,7 @@ export default function Boxes() {
         <div data-testid="z-bottom" className="absolute top-6 left-6 size-16 rounded bg-indigo-500" />
       </Cell>
       <Cell id="islands" className="flex items-center gap-3">
-        {/* biome-ignore lint/performance/noImgElement: a plain <img> is the raster island under test */}
+        {/* biome-ignore lint/performance/noImgElement: a plain <img>, decoded to an image fill */}
         <img data-testid="img" src="/badge.svg" alt="" width={40} height={40} />
         <svg data-testid="svg" width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">
           <rect x="4" y="4" width="32" height="32" rx="8" fill="#10b981" />
