@@ -9,7 +9,7 @@ export const solid = (c: RGBA): SolidPaint => ({
 const SCALE: Record<Extract<IRPaint, { type: "image" }>["scale"], ImagePaint["scaleMode"]> = {
   cover: "FILL",
   contain: "FIT",
-  stretch: "FILL", // ponytail: Figma has no non-uniform stretch; exact in Phase 5 via CROP transform
+  stretch: "CROP", // with the identity imageTransform: the image spans the layer, unevenly scaled
   tile: "TILE",
   none: "CROP",
 };
@@ -43,6 +43,18 @@ export function radialTransform(
   return [
     [round(1 / (2 * radius.x)), 0, round(0.5 - center.x / (2 * radius.x))],
     [0, round(1 / (2 * radius.y)), round(0.5 - center.y / (2 * radius.y))],
+  ];
+}
+
+/**
+ * The visible part of the image (fractions) → CROP imageTransform, which maps layer space (0–1) to
+ * image space (0–1): the layer's corner (0,0) shows image point (x,y), its far corner (x+w, y+h).
+ */
+export function cropTransform(crop?: { x: number; y: number; width: number; height: number }): Transform {
+  const c = crop ?? { x: 0, y: 0, width: 1, height: 1 };
+  return [
+    [round(c.width), 0, round(c.x)],
+    [0, round(c.height), round(c.y)],
   ];
 }
 
@@ -87,11 +99,11 @@ export function paints(fills: readonly IRPaint[], env: PaintEnv): { paints: Pain
         scaleMode: SCALE[p.scale],
       };
       const px = env.imageWidth(p.assetId);
-      out.push(
-        p.scale === "tile" && p.tileSize && px > 0
-          ? { ...image, scalingFactor: round(p.tileSize.width / px) }
-          : image,
-      );
+      if (p.crop || p.scale === "stretch")
+        out.push({ ...image, scaleMode: "CROP", imageTransform: cropTransform(p.crop) });
+      else if (p.scale === "tile" && p.tileSize && px > 0)
+        out.push({ ...image, scalingFactor: round(p.tileSize.width / px) });
+      else out.push(image);
     }
   }
   return { paints: out, skipped };

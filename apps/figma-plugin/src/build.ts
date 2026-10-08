@@ -1,4 +1,13 @@
-import type { BoxNode, Capture, Diagnostic, Document, TextNode as IRText, Node, Rect } from "@w2f/ir";
+import type {
+  BoxNode,
+  Capture,
+  Diagnostic,
+  Document,
+  TextNode as IRText,
+  VectorNode as IRVector,
+  Node,
+  Rect,
+} from "@w2f/ir";
 import { blendMode, effects, rotatedTransform, strokeProps } from "./map/box.ts";
 import { type FontReportEntry, fontKey, indexFonts, planFonts, styleKey } from "./map/fonts.ts";
 import { relative } from "./map/geometry.ts";
@@ -127,6 +136,30 @@ function buildText(n: IRText, parent: Rect, ctx: Ctx): TextNode {
   return t;
 }
 
+/** Inline svg → editable vectors; if Figma rejects the markup, its PNG fallback as an image. */
+function buildVector(n: IRVector, parent: Rect, ctx: Ctx): SceneNode & LayoutMixin & BlendMixin {
+  try {
+    const node = figma.createNodeFromSvg(n.svg);
+    place(node, n, parent);
+    return node;
+  } catch (e) {
+    const hash = n.fallback ? ctx.images.get(n.fallback) : undefined;
+    ctx.diagnostics.push(
+      diagnostic("SVG_IMPORT_FAILED", `Figma rejected the SVG of "${n.name}": ${String(e)}`, {
+        nodeId: n.id,
+        severity: hash ? "warning" : "error",
+        fallback: hash ? "rasterized" : "placeholder",
+      }),
+    );
+    const rect = figma.createRectangle();
+    place(rect, n, parent);
+    rect.fills = hash
+      ? [{ type: "IMAGE", imageHash: hash, scaleMode: "FILL" }]
+      : [{ type: "SOLID", color: { r: 0.85, g: 0.85, b: 0.85 } }];
+    return rect;
+  }
+}
+
 async function buildBox(n: BoxNode, parent: Rect, ctx: Ctx): Promise<FrameNode | RectangleNode> {
   const node = n.children.length > 0 ? figma.createFrame() : figma.createRectangle();
   place(node, n, parent);
@@ -162,11 +195,12 @@ async function buildNode(n: Node, parent: Rect, ctx: Ctx): Promise<SceneNode | n
     ctx.progress(ctx.built, ctx.total);
     await new Promise((r) => setTimeout(r, 0)); // keep Figma responsive on large captures
   }
-  if (n.type === "vector") {
-    unbuilt(ctx, "vector (SVG)", n);
-    return null;
-  }
-  const node = n.type === "text" ? buildText(n, parent, ctx) : await buildBox(n, parent, ctx);
+  const node =
+    n.type === "text"
+      ? buildText(n, parent, ctx)
+      : n.type === "vector"
+        ? buildVector(n, parent, ctx)
+        : await buildBox(n, parent, ctx);
   common(node, n);
   return node;
 }

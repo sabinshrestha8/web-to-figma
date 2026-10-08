@@ -137,6 +137,41 @@ describe("paint", () => {
     expect(out.paints[1]).toMatchObject({ scaleMode: "TILE", scalingFactor: 0.5 }); // 32 px image, 16 px tile
     expect(out.skipped).toEqual(["zero-size radial gradient"]);
   });
+
+  it("maps image scales; crops and stretches go through CROP with an imageTransform", () => {
+    const image = { type: "image" as const, assetId: "a".repeat(64), position: { x: 0.5, y: 0.5 } };
+    const out = paints(
+      [
+        { ...image, scale: "cover" },
+        { ...image, scale: "contain" },
+        { ...image, scale: "stretch" },
+        { ...image, scale: "cover", crop: { x: 0.1, y: 0.25, width: 0.8, height: 0.5 } },
+      ],
+      env,
+    ).paints;
+    expect(out).toEqual([
+      { type: "IMAGE", imageHash: "hash", scaleMode: "FILL" },
+      { type: "IMAGE", imageHash: "hash", scaleMode: "FIT" },
+      {
+        type: "IMAGE",
+        imageHash: "hash",
+        scaleMode: "CROP",
+        imageTransform: [
+          [1, 0, 0],
+          [0, 1, 0],
+        ],
+      },
+      {
+        type: "IMAGE",
+        imageHash: "hash",
+        scaleMode: "CROP",
+        imageTransform: [
+          [0.8, 0, 0.1],
+          [0, 0.5, 0.25],
+        ],
+      },
+    ]);
+  });
 });
 
 describe("box", () => {
