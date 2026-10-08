@@ -50,7 +50,7 @@ export default function CardGrid() {
     <main className="min-h-screen bg-slate-50 px-10 py-16">
       <h1 className="text-3xl font-bold text-slate-900">Everything you need</h1>
       <p className="mt-2 text-slate-600">Six modules, one workspace.</p>
-      <div className="mt-10 grid grid-cols-3 gap-6">
+      <div data-testid="card-grid" className="mt-10 grid grid-cols-3 gap-6">
         {CARDS.map((c) => (
           <article
             key={c.title}
