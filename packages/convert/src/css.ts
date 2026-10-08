@@ -39,10 +39,26 @@ export function parseColor(value: string): RGBA | null {
 export function parseFontFamilies(value: string): string[] {
   const out: string[] = [];
   for (const m of value.matchAll(/\s*("([^"]*)"|'([^']*)'|[^,]+)\s*(?:,|$)/g)) {
-    const name = (m[2] ?? m[3] ?? m[1] ?? "").trim();
+    const name = nextFontFamily((m[2] ?? m[3] ?? m[1] ?? "").trim());
     if (name) out.push(name);
   }
   return out.length ? out : ["sans-serif"];
+}
+
+const NEXT_FONT = /^__(.+?)(_Fallback)?_[0-9a-f]{6,}$/i;
+
+/**
+ * next/font renames families: "__notoSansDevanagari_e075aa" is Noto Sans Devanagari, and its
+ * "…_Fallback_e075aa" is a metric-adjusted local font (Arial…) that no designer wants: dropped.
+ */
+export function nextFontFamily(name: string): string | null {
+  const m = NEXT_FONT.exec(name);
+  if (!m?.[1]) return name;
+  if (m[2]) return null;
+  return m[1]
+    .replace(/_/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\b[a-z]/g, (c) => c.toUpperCase());
 }
 
 export function textTransform(value: string): TextStyle["transform"] {

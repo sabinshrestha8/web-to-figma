@@ -7,8 +7,9 @@ export * from "./rasters.ts";
 export * from "./scale.ts";
 export * from "./snapshot.ts";
 export * from "./snapshot-to-ir.ts";
+export * from "./text.ts";
 
-export const GENERATOR = { name: "web-to-figma", version: "0.3.0" };
+export const GENERATOR = { name: "web-to-figma", version: "0.4.0" };
 
 export function toDocument(
   captures: Capture[],

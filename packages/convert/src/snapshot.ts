@@ -28,6 +28,8 @@ export const STYLE_PROPS = [
   "letter-spacing",
   "text-align",
   "text-transform",
+  "text-decoration-line",
+  "vertical-align",
   "padding-top",
   "padding-right",
   "padding-bottom",
@@ -107,9 +109,15 @@ export interface RawText {
   kind: "text";
   id: number;
   parent: number;
-  /** Text after white-space collapsing per the parent's `white-space`. */
+  /**
+   * Text after white-space collapsing per the parent's `white-space`, not trimmed: whether a space
+   * separates it from its inline neighbors matters once a paragraph is merged into one text node.
+   */
   text: string;
-  /** One rect per line fragment (Range.getClientRects), page coordinates. */
+  /**
+   * One rect per line fragment (Range.getClientRects), page coordinates. Empty only for a
+   * whitespace-only node between inline siblings (a space at a line wrap has no rect).
+   */
   lines: RawRect[];
 }
 

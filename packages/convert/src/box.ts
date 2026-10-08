@@ -99,13 +99,16 @@ function shadow(value: string, allowSpread: boolean): Effect | null {
 }
 
 /** box-shadow → shadow effects, bottom-most first (CSS lists the top-most shadow first). */
-export function parseBoxShadow(value: string): Effect[] {
+export function parseBoxShadow(value: string, allowSpread = true): Effect[] {
   if (value === "none" || value === "") return [];
   return splitTop(value, ",")
-    .map((s) => shadow(s, true))
+    .map((s) => shadow(s, allowSpread))
     .filter((e): e is Effect => e !== null)
     .reverse();
 }
+
+/** text-shadow → shadow effects on the text node: same syntax as box-shadow, minus inset and spread. */
+export const parseTextShadow = (value: string): Effect[] => parseBoxShadow(value, false);
 
 /**
  * filter / backdrop-filter. blur(σ) → a Figma blur of radius 2σ (Figma's blur radius is twice the

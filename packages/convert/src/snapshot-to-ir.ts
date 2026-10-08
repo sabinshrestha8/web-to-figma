@@ -1,18 +1,11 @@
-import {
-  type BoxNode,
-  type Capture,
-  type Diagnostic,
-  diag,
-  type Node,
-  type Paint,
-  type TextNode,
-} from "@w2f/ir";
-import { parseColor, parseFontFamilies, px, round2, textAlign, textTransform } from "./css.ts";
+import { type BoxNode, type Capture, type Diagnostic, diag, type Node, type Paint } from "@w2f/ir";
+import { parseColor, round2 } from "./css.ts";
 import { islandReason } from "./rasters.ts";
 import { createReport } from "./report.ts";
 import { bakeScale } from "./scale.ts";
-import type { RawElement, RawRect, RawSnapshot, RawText } from "./snapshot.ts";
+import type { RawElement, RawSnapshot, RawText } from "./snapshot.ts";
 import { boxStyle, islandStyle } from "./style.ts";
+import { decorationResolver, type InlineGroup, inlineGroups, inlineText } from "./text.ts";
 
 export interface ConvertOptions {
   captureId: string;
@@ -27,13 +20,6 @@ export interface ConvertResult {
   capture: Capture;
   diagnostics: Diagnostic[];
 }
-
-const rect = (r: RawRect) => ({
-  x: round2(r.x),
-  y: round2(r.y),
-  width: round2(Math.max(0, r.width)),
-  height: round2(Math.max(0, r.height)),
-});
 
 const solid = (css: string): Paint[] => {
   const color = parseColor(css);
@@ -53,102 +39,9 @@ function selectorOf(el: RawElement): string {
   return `${el.tag}${el.attrs.id ? `#${el.attrs.id}` : ""}${cls.map((c) => `.${c}`).join("")}`;
 }
 
-/** Merge line fragments that share a visual line (inline boxes, bidi runs) into one rect per line. */
-export function groupLines(fragments: RawRect[]): RawRect[] {
-  const lines: RawRect[] = [];
-  for (const f of [...fragments].sort((a, b) => a.y - b.y || a.x - b.x)) {
-    const last = lines.at(-1);
-    if (last && f.y + f.height / 2 < last.y + last.height) {
-      const x = Math.min(last.x, f.x);
-      const y = Math.min(last.y, f.y);
-      last.width = Math.max(last.x + last.width, f.x + f.width) - x;
-      last.height = Math.max(last.y + last.height, f.y + f.height) - y;
-      last.x = x;
-      last.y = y;
-    } else {
-      lines.push({ ...f });
-    }
-  }
-  return lines;
-}
-
-function contentBox(el: RawElement): RawRect {
-  const s = el.style;
-  const left = (px(s["padding-left"]) ?? 0) + (px(s["border-left-width"]) ?? 0);
-  const right = (px(s["padding-right"]) ?? 0) + (px(s["border-right-width"]) ?? 0);
-  const top = (px(s["padding-top"]) ?? 0) + (px(s["border-top-width"]) ?? 0);
-  const bottom = (px(s["padding-bottom"]) ?? 0) + (px(s["border-bottom-width"]) ?? 0);
-  return {
-    x: el.rect.x + left,
-    y: el.rect.y + top,
-    width: Math.max(0, el.rect.width - left - right),
-    height: Math.max(0, el.rect.height - top - bottom),
-  };
-}
-
-/**
- * Text bounds follow Figma's model: the box spans whole line boxes.
- * Range rects cover only the font's content area, so with an explicit line-height we expand each
- * line by its half-leading. Multi-line text takes the parent's content width so it wraps alike.
- */
-export function textNode(t: RawText, parent: RawElement, captureId: string): TextNode | null {
-  const lines = groupLines(t.lines);
-  const first = lines[0];
-  const color = parseColor(parent.style.color);
-  if (!first || !color) return null;
-
-  const s = parent.style;
-  const lineHeight = px(s["line-height"]);
-  const fontSize = px(s["font-size"]) ?? 16;
-  const multiLine = lines.length > 1;
-  const left = Math.min(...lines.map((l) => l.x));
-  const right = Math.max(...lines.map((l) => l.x + l.width));
-  const content = contentBox(parent);
-  const last = lines.at(-1) ?? first;
-
-  const x = multiLine ? content.x : left;
-  const width = multiLine ? content.width : right - left;
-  const y = lineHeight === null ? first.y : first.y - (lineHeight - first.height) / 2;
-  const height = lineHeight === null ? last.y + last.height - first.y : lineHeight * lines.length;
-
-  return {
-    id: `${captureId}:${t.id}`,
-    type: "text",
-    name: t.text.slice(0, 40),
-    bounds: rect({ x, y, width, height }),
-    opacity: 1,
-    blendMode: "normal",
-    effects: [],
-    position: "flow",
-    sizing: { horizontal: multiLine ? "fixed" : "hug", vertical: "hug" },
-    source: { tag: "#text", selector: selectorOf(parent) },
-    characters: t.text,
-    runs: [
-      {
-        start: 0,
-        end: t.text.length,
-        style: {
-          families: parseFontFamilies(s["font-family"]),
-          weight: Math.min(1000, Math.max(1, Number.parseInt(s["font-weight"], 10) || 400)),
-          italic: /^(italic|oblique)/.test(s["font-style"]),
-          size: fontSize,
-          lineHeight: lineHeight === null ? "auto" : round2(lineHeight),
-          letterSpacing: round2(px(s["letter-spacing"]) ?? 0),
-          transform: textTransform(s["text-transform"]),
-          decoration: "none",
-          color,
-        },
-      },
-    ],
-    align: textAlign(s["text-align"]),
-    autoResize: multiLine ? "height" : "width-and-height",
-    lineCount: lines.length,
-  };
-}
-
 /** Stacking bucket per CSS painting order: negative z, in-flow, positioned (z auto/0), positive z. */
-export function stackKey(n: RawElement | RawText, parent: RawElement): [number, number] {
-  if (n.kind === "text") return [1, 0];
+export function stackKey(n: RawElement | { kind: "text" | "inline" }, parent: RawElement): [number, number] {
+  if (n.kind !== "element") return [1, 0];
   const positioned = n.style.position !== "static";
   const zApplies = positioned || /(flex|grid)$/.test(parent.style.display);
   const z = zApplies && n.style["z-index"] !== "auto" ? Number.parseInt(n.style["z-index"], 10) || 0 : null;
@@ -158,7 +51,10 @@ export function stackKey(n: RawElement | RawText, parent: RawElement): [number, 
 }
 
 /** Children in paint order, bottom-most first. Stable, so DOM order breaks ties. */
-export function paintOrder(kids: (RawElement | RawText)[], parent: RawElement): (RawElement | RawText)[] {
+export function paintOrder<T extends RawElement | { kind: "text" | "inline" }>(
+  kids: T[],
+  parent: RawElement,
+): T[] {
   const keyed = kids.map((n) => ({ n, k: stackKey(n, parent) }));
   keyed.sort((a, b) => a.k[0] - b.k[0] || a.k[1] - b.k[1]);
   return keyed.map((x) => x.n);
@@ -185,9 +81,9 @@ export function flatten(box: BoxNode): Node {
 }
 
 /**
- * Phase 3: boxes carry borders, radii, gradients, shadows, blurs, blend modes, clipping and leaf
- * rotation; replaced content becomes raster islands. Every box is still absolutely positioned
- * (layout "none"); layout inference arrives in Phase 6, rich text in Phase 4.
+ * Boxes carry borders, radii, gradients, shadows, blurs, blend modes, clipping and leaf rotation;
+ * replaced content becomes raster islands; each run of inline content becomes one text node with
+ * style runs. Every box is still absolutely positioned (layout "none") until Phase 6.
  */
 export function snapshotToIR(raw: RawSnapshot, opts: ConvertOptions): ConvertResult {
   const snap = bakeScale(raw);
@@ -233,20 +129,17 @@ export function snapshotToIR(raw: RawSnapshot, opts: ConvertOptions): ConvertRes
   const bodyPropagates = htmlFill.length === 0 && body !== undefined;
   const canvasFill = htmlFill.length ? htmlFill : body ? solid(body.style["background-color"]) : [];
 
+  const kidsOf = (el: RawElement) => children.get(el.id) ?? [];
+  const decorationOf = decorationResolver(elements);
   const convertAll = (parent: RawElement): Node[] =>
-    paintOrder(children.get(parent.id) ?? [], parent)
+    paintOrder(inlineGroups(kidsOf(parent), parent, kidsOf), parent)
       .map((c) => convert(c, parent))
       .filter((c): c is Node => c !== null);
 
-  const convert = (n: RawElement | RawText, parent: RawElement): Node | null => {
-    if (n.kind === "text") {
-      const top = Math.min(...n.lines.map((l) => l.y));
-      if (parent.style.visibility !== "visible" || top >= height) return null;
-      const t = textNode(n, parent, captureId);
-      if (t && parent.style["text-shadow"] !== "none") {
-        report.add("UNSUPPORTED_CSS", "text-shadow (Phase 4)", t.id, "skipped");
-      }
-      return t;
+  const convert = (n: RawElement | InlineGroup, parent: RawElement): Node | null => {
+    if (n.kind === "inline") {
+      const selector = selectorOf(parent);
+      return inlineText(n, parent, { captureId, report, kidsOf, decorationOf, selector, maxY: height });
     }
     if (n.rect.y >= height) return null;
     if (Number.parseFloat(n.style.opacity) === 0) return null;

@@ -2,6 +2,7 @@ import { type BoxNode, parseDocument, type TextNode } from "@w2f/ir";
 import { describe, expect, it } from "vitest";
 import {
   groupLines,
+  nextFontFamily,
   parseColor,
   parseFontFamilies,
   px,
@@ -87,6 +88,8 @@ const defaults: Record<StyleProp, string> = {
   "letter-spacing": "normal",
   "text-align": "start",
   "text-transform": "none",
+  "text-decoration-line": "none",
+  "vertical-align": "baseline",
   ...Object.fromEntries(
     ["top", "right", "bottom", "left"].flatMap((side) => [
       [`border-${side}-style`, "none"],
@@ -475,6 +478,166 @@ describe("snapshotToIR box fidelity", () => {
     expect(diagnostics.map((d) => [d.message, d.detail?.count])).toEqual([
       ["filter grayscale()", 3],
       ["tiled gradient pattern (no tile was rendered)", 2],
+    ]);
+  });
+});
+
+describe("inline formatting contexts", () => {
+  const line = (x: number, width: number, y = 3) => ({ x, y, width, height: 18 });
+  const texts = (snap: RawSnapshot) =>
+    all(convert(snap).capture.root).filter((n): n is TextNode => n.type === "text");
+  const span = (t: TextNode, i: number) => t.characters.slice(t.runs[i]?.start, t.runs[i]?.end);
+
+  it("draws a paragraph with strong, em and a link as one text node with style runs", () => {
+    const snap = page((body) => {
+      const p = el(body.id, "p", { x: 0, y: 0, width: 300, height: 48 }, { "line-height": "24px" });
+      const strong = el(
+        p.id,
+        "strong",
+        { x: 40, y: 3, width: 30, height: 18 },
+        { display: "inline", "font-weight": "700" },
+      );
+      const em = el(
+        p.id,
+        "em",
+        { x: 0, y: 27, width: 40, height: 18 },
+        { display: "inline", "font-style": "italic" },
+      );
+      const a = el(
+        p.id,
+        "a",
+        { x: 44, y: 27, width: 30, height: 18 },
+        { display: "inline", color: "rgb(0, 0, 255)", "text-decoration-line": "underline" },
+      );
+      const b = el(
+        a.id,
+        "b",
+        { x: 44, y: 27, width: 10, height: 18 },
+        { display: "inline", "font-weight": "700" },
+      );
+      return [
+        p,
+        txt(p.id, "Hello ", [line(0, 40)]),
+        strong,
+        txt(strong.id, "bold", [line(40, 30)]),
+        txt(p.id, " and ", [line(70, 35)]),
+        em,
+        txt(em.id, "italic", [line(0, 40, 27)]),
+        txt(p.id, " ", []), // the space where the line wrapped: no rect, still a word separator
+        a,
+        txt(a.id, "my ", [line(44, 20, 27)]),
+        b,
+        txt(b.id, "link", [line(64, 10, 27)]),
+        txt(p.id, ". ", [line(74, 4, 27)]),
+      ];
+    });
+    const [t, ...rest] = texts(snap);
+    expect(rest).toEqual([]);
+    if (!t) throw new Error("no text node");
+    expect(t.characters).toBe("Hello bold and italic my link.");
+    expect(t.runs.map((_, i) => span(t, i))).toEqual([
+      "Hello ",
+      "bold",
+      " and ",
+      "italic",
+      " ",
+      "my ",
+      "link",
+      ".",
+    ]);
+    expect(t.runs[1]?.style.weight).toBe(700);
+    expect(t.runs[3]?.style.italic).toBe(true);
+    expect(t.runs[5]?.style).toMatchObject({ decoration: "underline", color: { r: 0, g: 0, b: 1, a: 1 } });
+    expect(t.runs[6]?.style).toMatchObject({ decoration: "underline", weight: 700 }); // propagated from <a>
+    expect(t.runs[7]?.style.decoration).toBe("none");
+    expect(t).toMatchObject({
+      lineCount: 2,
+      autoResize: "height",
+      bounds: { x: 0, y: 0, width: 300, height: 48 },
+    });
+  });
+
+  it("keeps inline elements with their own box as boxes between text nodes", () => {
+    const snap = page((body) => {
+      const p = el(body.id, "p", { x: 0, y: 0, width: 600, height: 24 });
+      const code = el(
+        p.id,
+        "code",
+        { x: 50, y: 2, width: 40, height: 20 },
+        { display: "inline", "background-color": "rgb(240, 240, 240)" },
+      );
+      return [
+        p,
+        txt(p.id, "Run ", [line(0, 50)]),
+        code,
+        txt(code.id, "pnpm", [line(52, 36)]),
+        txt(p.id, " now", [line(90, 30)]),
+      ];
+    });
+    const root = convert(snap).capture.root;
+    expect(texts(snap).map((t) => t.characters)).toEqual(["Run", "pnpm", "now"]);
+    expect(all(root).find((n) => n.name === "code")?.type).toBe("box");
+  });
+
+  it("collapses white space across elements and turns <br> into a line break", () => {
+    const snap = page((body) => {
+      const p = el(body.id, "p", { x: 0, y: 0, width: 600, height: 48 });
+      const s = el(p.id, "span", { x: 30, y: 3, width: 20, height: 18 }, { display: "inline" });
+      const br = el(p.id, "br", { x: 60, y: 3, width: 0, height: 18 }, { display: "inline" });
+      return [
+        p,
+        txt(p.id, " one ", [line(0, 30)]),
+        s,
+        txt(s.id, " two ", [line(30, 30)]),
+        br,
+        txt(p.id, " three ", [line(0, 40, 27)]),
+      ];
+    });
+    const [t] = texts(snap);
+    expect(t?.characters).toBe("one two\nthree");
+    expect(t?.runs).toHaveLength(1); // same style throughout: one run
+  });
+
+  it("maps text-shadow to shadow effects on the text node", () => {
+    const snap = page((body) => {
+      const h = el(
+        body.id,
+        "h1",
+        { x: 0, y: 0, width: 600, height: 40 },
+        { "text-shadow": "rgba(0, 0, 0, 0.5) 1px 2px 3px" },
+      );
+      return [h, txt(h.id, "Shadow", [line(0, 90)])];
+    });
+    const { capture, diagnostics } = convert(snap);
+    const t = all(capture.root).find((n) => n.type === "text");
+    expect(t?.effects).toEqual([
+      {
+        type: "shadow",
+        inset: false,
+        offset: { x: 1, y: 2 },
+        blur: 3,
+        spread: 0,
+        color: { r: 0, g: 0, b: 0, a: 0.5 },
+      },
+    ]);
+    expect(diagnostics).toEqual([]);
+  });
+
+  it.each([
+    ["__inter_53f2d8", "Inter"],
+    ["__notoSansDevanagari_e075aa", "Noto Sans Devanagari"],
+    ["__Roboto_Mono_a1b2c3", "Roboto Mono"],
+    ["__inter_Fallback_53f2d8", null],
+    ["Inter", "Inter"],
+    ["__custom", "__custom"],
+  ])("nextFontFamily(%s)", (input, expected) => {
+    expect(nextFontFamily(input)).toBe(expected);
+  });
+
+  it("drops next/font fallback families from the stack", () => {
+    expect(parseFontFamilies("__inter_53f2d8, __inter_Fallback_53f2d8, sans-serif")).toEqual([
+      "Inter",
+      "sans-serif",
     ]);
   });
 });
