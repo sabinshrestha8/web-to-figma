@@ -1,0 +1,33 @@
+{
+  "name": "web-to-figma",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "typecheck": "tsc -p . && pnpm -r typecheck",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "test": "vitest run --project unit",
+    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:int",
+    "test:int": "pnpm --filter @w2f/fixture-site build && vitest run --project integration",
+    "w2f": "tsx packages/capture/src/cli.ts",
+    "compare": "tsx packages/capture/src/compare-cli.ts",
+    "w2f:login": "tsx packages/capture/src/login-cli.ts",
+    "browsers": "pnpm --filter @w2f/capture exec playwright install chromium",
+    "plugin:build": "pnpm --filter @w2f/figma-plugin build"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@types/node": "20.19.43",
+    "typescript": "7.0.2",
+    "vitest": "4.1.11",
+    "@w2f/ir": "workspace:*",
+    "zod": "4.6.5",
+    "tsx": "4.23.15",
+    "@w2f/capture": "workspace:*",
+    "@w2f/convert": "workspace:*"
+  }
+}
