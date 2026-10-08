@@ -35,10 +35,10 @@ Source: [`packages/ir/src/diagnostics.ts`](../packages/ir/src/diagnostics.ts). `
 | `IMAGE_FAILED` | error | Image couldn't be fetched or decoded | placeholder |
 | `ASSET_REJECTED` | error | Asset over the size/pixel limits | placeholder |
 | `SVG_IMPORT_FAILED` | error | Figma rejected the SVG markup | rasterized |
-| `FONT_SUBSTITUTED` | warning | The font used in Figma differs from the stack's first family, weight or italic (generic families like `sans-serif` always count). Once per requested font; `detail.from`/`detail.to` | substituted |
+| `FONT_SUBSTITUTED` | warning | The font used in Figma differs from the stack's first family, weight or italic (generic families like `sans-serif` always count). Once per requested style (family + weight + italic), also listed in the pre-build font report; `detail.from`/`detail.to`/`detail.runs` | substituted |
 | `UNSUPPORTED_CSS` | warning | A property with visible effect has no mapping (`detail.property`), or the plugin can't build an IR feature yet (`detail.feature`, once per build) | approximated / skipped |
 | `BORDER_COLORS_MIXED` | warning | Per-side border colors differ | approximated |
-| `TEXT_REFLOW` | warning | The built Figma text height differs from the browser (wrapping changed) | — |
+| `TEXT_REFLOW` | warning | A built Figma text node's height differs from the browser's by more than half a line (it wrapped differently: metrics, kerning, a substituted font). Once per build; `detail.count`, `nodeId` of an example | approximated |
 | `PSEUDO_ELEMENT_SKIPPED` | warning | `::before/::after` with visible content | skipped |
 | `PAGE_HEIGHT_CLIPPED` | warning | Page taller than the capture height cap | — |
 | `SCROLL_CONTAINER_EXPANDED` | info | The document doesn't scroll but a large inner element does (app-shell layout). The viewport was made taller until its content fits (`detail.capturedHeight`), so viewport-sized elements (100vh) are drawn that tall. The IR keeps the requested viewport | — |

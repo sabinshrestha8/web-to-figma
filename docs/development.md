@@ -125,3 +125,13 @@ Build a thin end-to-end slice early, then widen fidelity one area at a time.
 - `tests/fixture-server.ts` now refuses to start if port 4400 is already taken. Before, the tests silently ran against whatever server was there.
 - `pnpm w2f:login <url>` (`packages/capture/src/login.ts`): opens a visible browser with a fresh profile and saves cookies and localStorage to `.data/auth.json` when the window closes. It snapshots every second, so closing the whole browser still saves. `playwright` is only a dependency of `@w2f/capture`, so `pnpm exec playwright …` at the root never worked. Added `pnpm browsers` and fixed the README and CI to use it.
 - **App-shell pages** (the document doesn't scroll; a large inner element does, as in MUI admin layouts): the capture used to stop at the fold. `unrollScroller` (capture.ts) now grows the viewport by the scroller's hidden height (max 3 rounds, capped at the capture height limit) and lets the app re-lay itself out, with no CSS overrides. It reports this as `SCROLL_CONTAINER_EXPANDED` (info). The IR keeps the requested viewport. IR 1.2 adds the code. Fixture `/app-shell`; the test is mutation-checked. On the user's dashboard the capture went from 1440×900 to 1440×2664, and no assets were rejected.
+
+### Phase 4: Typography (2026-10-08)
+
+- **Collector:** text is collapsed but not trimmed. Whitespace-only separators between inline siblings are kept even without a rect (probed: Chrome reports none for the space at a line wrap). New style props `text-decoration-line`, `vertical-align`.
+- **`packages/convert/src/text.ts`:** inline formatting contexts. Each run of a block's inline content (text, `strong`/`em`/`a`/`span`/`del`/`ins`, `<br>`) is one TextNode with merged style runs; inline elements with their own box stay boxes. White space collapses across elements. Decorations propagate as in CSS. text-shadow → text effects (the Phase 3 `UNSUPPORTED_CSS` is gone).
+- **next/font names** are restored (`__inter_53f2d8` → Inter; `…_Fallback_…` dropped). Found in the user's dashboard capture, where every run asked for a family Figma could never match.
+- **Preview:** text-node shadows render as `text-shadow`.
+- **Plugin:** font report. Dropping a bundle resolves fonts (`planFonts`) and lists them before **Build**/**Cancel**. `FONT_SUBSTITUTED` per requested style. `TEXT_REFLOW` after building (`reflowed`, aggregated). The UI keeps the bundle's capture diagnostics next to the build's.
+- **Fixture:** `article`. Visual diff unchanged on the earlier fixtures (landing 0.01%, card-grid 0.02%, boxes 0.13%); article 0.08%.
+- No IR schema change (still 1.2).

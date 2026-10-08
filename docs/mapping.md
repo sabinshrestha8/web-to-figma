@@ -13,7 +13,7 @@ This document is the contract for `packages/capture/collector`, `packages/conver
    - If the document doesn't scroll but an element covering at least half the viewport does (app shells), the viewport grows by that element's hidden height and the page settles again, up to 3 rounds. Reported as `SCROLL_CONTAINER_EXPANDED`.
 6. Two `requestAnimationFrame` ticks.
 
-**Walk.** One pass over the tree. For each element: `getBoundingClientRect()` plus scroll offset, and about 60 whitelisted computed properties (never the full ~300). For each text node: `Range.getClientRects()`, which gives line boxes (line count, wrap width).
+**Walk.** One pass over the tree. For each element: `getBoundingClientRect()` plus scroll offset, and about 60 whitelisted computed properties (never the full ~300). For each text node: `Range.getClientRects()`, which gives line boxes (line count, wrap width). Text is white-space-collapsed but **not trimmed**, so the converter knows whether a space separates it from its inline neighbors. A whitespace-only node between two inline siblings is kept even without a rect: Chrome gives the space where a line wraps no rect, but it still separates the words around it.
 
 **Skips:**
 - Subtrees with `display:none`, `visibility:hidden` or `opacity:0`.
@@ -66,7 +66,7 @@ How it works:
 | `border-*-width/style/color` | `stroke` | Color of the widest side; mixed colors → `BORDER_COLORS_MIXED`; double/groove/ridge/inset/outset → solid + `UNSUPPORTED_CSS`; `outline` → `UNSUPPORTED_CSS` |
 | `border-*-radius` | `radius` | `%` resolved against the box; CSS overlap scaling applied; elliptical → smaller radius + `UNSUPPORTED_CSS` |
 | `box-shadow` | `effects[]` drop/inner shadow | Bottom-most first (CSS lists the top shadow first). Transparent or zero shadows are dropped |
-| `text-shadow` | — | `UNSUPPORTED_CSS` until Phase 4 |
+| `text-shadow` | text node `effects[]` drop shadows | Same parser as box-shadow, without inset/spread. An inline element with a different text-shadow keeps its own text node |
 | `opacity`, `mix-blend-mode` | `opacity`, `blendMode` | |
 | `overflow` ≠ visible | `clip: true` | Clipping on one axis only → both axes clip + `UNSUPPORTED_CSS` |
 | `filter: blur()`, `backdrop-filter: blur()` | layer-blur, background-blur | Other filters → `UNSUPPORTED_CSS` |
@@ -74,7 +74,8 @@ How it works:
 | `clip-path`, `mask-image`, `border-image` | raster island (leaf) | On an element with children → `UNSUPPORTED_CSS`, drawn without them |
 | `position` | `position` | sticky → flow at its scroll-top location |
 | `display:flex/grid` + related | `layout` candidate | Must pass verification (§3) |
-| font properties | `TextStyle` | One TextNode per inline formatting context. Inline elements with their own box (badge, padded `<code>`) break out as boxes |
+| font properties | `TextStyle` per run | One TextNode per run of inline content (§5). Inline elements with their own box (badge, padded `<code>`) break out as boxes |
+| `text-decoration-line` | `TextStyle.decoration` | Propagated to descendants (an underlined `<a>` underlines its `<strong>`), not into inline-blocks or out-of-flow boxes. Underline wins over line-through; overline and decoration color/thickness/style are dropped |
 | `<img>` + `object-fit/position` | `image` paint | cover→cover, contain→contain, fill→stretch, none→none, scale-down→contain |
 | `background-size/repeat/position` | `image` paint | cover/contain/repeat→tile; other sizes → approximated |
 
@@ -138,12 +139,22 @@ The functions in `apps/figma-plugin/src/map/*.ts` are pure (IR → plain propert
 
 ## 5. Typography and fonts
 
+**Inline formatting contexts** (`packages/convert/src/text.ts`). A block's children are split, in DOM order, into boxes and runs of inline content. Each run of inline content becomes **one** TextNode:
+- **Plain inline** elements join the text as style runs: `display: inline`, static, `vertical-align: baseline`, no background, border, padding, shadow, filter, transform, clip or mask, opacity 1, the block's text-shadow, and only plain content inside (`strong`, `em`, `a`, `span`, `del`, `ins`…). `<br>` becomes a line break.
+- Anything else (inline-block, padded or colored `<code>`, badges, images, offset or super/subscript spans) stays a box and splits the text around it.
+- White space collapses across element boundaries (`Hello ` + ` <b>world</b>` → one space) and is trimmed at the ends; `pre`/`pre-wrap` keep theirs. Adjacent runs with the same style merge.
+- Bounds: all line fragments of the run grouped into lines. One line hugs the text; several lines take the block's content width, so Figma wraps at the same width. With an explicit line-height each line grows by its half-leading.
+- Approximated: text that starts mid-line after a split (or with `text-indent`) and wraps is drawn from the line start (`UNSUPPORTED_CSS`, approximated). Horizontal margins on inline elements are lost.
+
+**Font names.** next/font renames families: `__notoSansDevanagari_e075aa` → "Noto Sans Devanagari", and its `__…_Fallback_…` (a metric-adjusted local font) is dropped from the stack.
+
 - The plugin resolves each `families` stack against `figma.listAvailableFontsAsync()`, first match wins. Figma ships Google Fonts, so most web fonts resolve.
 - Generic families: `system-ui`/`sans-serif`/`-apple-system` → Inter; `serif` → Noto Serif; `monospace` → Roboto Mono.
 - Weight → nearest available style name. Names are normalized ("SemiBold" = "Semi Bold"); italic picks an "Italic" style.
-- No match → Inter at the nearest weight + `FONT_SUBSTITUTED {from, to}`. The pre-build font report lists every missing family so the user can install it and rebuild.
+- No match → Inter at the nearest weight + `FONT_SUBSTITUTED {from, to}`.
+- **Font report before building:** after a bundle is dropped, the plugin resolves every distinct style (family stack + weight + italic) and lists what Figma will use, substitutions first, with run counts. The user installs missing fonts and drops the bundle again, or clicks **Build** (or **Cancel**).
 - `text-transform` → `textCase` (UPPER/LOWER/TITLE). The characters are kept in their original case, so edits behave like CSS.
-- **Post-build check:** if a text node's height differs from its IR bounds by more than half a line height → `TEXT_REFLOW`.
+- **Post-build check:** if a text node's height in Figma differs from its IR bounds by more than half a line height (it wrapped onto a different number of lines) → `TEXT_REFLOW`, once per build with the count and an example node.
 
 ## 6. Components
 
