@@ -36,6 +36,12 @@ export default function Article() {
       >
         This line asks for a font Figma does not have.
       </p>
+      {/* MUI <Typography noWrap> inside a flex trigger, like a date-range picker. */}
+      <div className="mt-4 flex items-center gap-2 rounded border px-3 py-1">
+        <p data-testid="truncated" className="w-32 truncate text-sm">
+          2083-06-24 (2026-10-10) to 2083-06-30
+        </p>
+      </div>
     </article>
   );
 }

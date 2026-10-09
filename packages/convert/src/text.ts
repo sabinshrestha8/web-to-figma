@@ -252,10 +252,10 @@ export function inlineText(group: InlineGroup, root: RawElement, ctx: TextContex
   const content = contentBox(root);
   const last = lines.at(-1) ?? first;
   const align = textAlign(s["text-align"]);
-  if (s["text-overflow"] === "ellipsis") {
+  if (s["text-overflow"] === "ellipsis" && multiLine) {
     ctx.report.add(
       "UNSUPPORTED_CSS",
-      "text-overflow: ellipsis is drawn as clipped full text (Figma has no ellipsis truncation)",
+      "text-overflow: ellipsis on wrapped text is drawn as clipped full text",
       id,
       "approximated",
     );
@@ -272,7 +272,13 @@ export function inlineText(group: InlineGroup, root: RawElement, ctx: TextContex
   const left = Math.min(...lines.map((l) => l.x));
   const right = Math.max(...lines.map((l) => l.x + l.width));
   const x = multiLine ? content.x : left;
-  const width = multiLine ? content.width : right - left;
+  // `truncate`: one line cut at the clipping content box with "…", like Figma's ENDING truncation.
+  const truncate =
+    s["text-overflow"] === "ellipsis" &&
+    !multiLine &&
+    s["overflow-x"] !== "visible" &&
+    right > content.x + content.width + 0.5;
+  const width = multiLine ? content.width : truncate ? content.x + content.width - left : right - left;
   const y = lineHeight === null ? first.y : first.y - (lineHeight - first.height) / 2;
   const height = lineHeight === null ? last.y + last.height - first.y : lineHeight * lines.length;
 
@@ -290,12 +296,13 @@ export function inlineText(group: InlineGroup, root: RawElement, ctx: TextContex
     blendMode: "normal",
     effects: parseTextShadow(s["text-shadow"]),
     position: "flow",
-    sizing: { horizontal: multiLine ? "fixed" : "hug", vertical: "hug" },
+    sizing: { horizontal: multiLine || truncate ? "fixed" : "hug", vertical: "hug" },
     source: { tag: "#text", selector: ctx.selector },
     characters,
     runs,
     align,
-    autoResize: multiLine ? "height" : "width-and-height",
+    autoResize: multiLine || truncate ? "height" : "width-and-height",
     lineCount: lines.length,
+    ...(truncate ? { truncate } : {}),
   };
 }

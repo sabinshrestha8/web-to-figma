@@ -135,6 +135,11 @@ function buildText(n: IRText, parent: Rect, ctx: Ctx, parentClips: boolean): Tex
     t.resize(r.width, r.height); // fixes the wrap width; HEIGHT then lets Figma own the height
   }
   t.textAutoResize = textAutoResize;
+  if (n.truncate) {
+    // HEIGHT at the clipped width, one line, "…" at the end: CSS `truncate`
+    t.maxLines = 1;
+    t.textTruncation = "ENDING";
+  }
   if (reflowed(n, t.height)) ctx.reflowed.push(n);
   // Hug text that renders wider than measured overflows a clipped parent visibly (cut glyphs).
   // Fixed-width text owns its width, so only hug text is checked.

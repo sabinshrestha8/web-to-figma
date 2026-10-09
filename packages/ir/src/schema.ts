@@ -2,10 +2,11 @@ import { z } from "zod";
 import { Diagnostic } from "./diagnostics.ts";
 
 /** Current IR version. Minor = additive optional fields; major = breaking, needs a migration. */
-export const SCHEMA_VERSION = "1.3";
+export const SCHEMA_VERSION = "1.4";
 // 1.1: optional `tileSize` on image paints.
 // 1.2: diagnostic code SCROLL_CONTAINER_EXPANDED.
 // 1.3: optional `crop` on image paints, optional `fallback` raster on vector nodes.
+// 1.4: optional `truncate` on text nodes.
 
 // All lengths are CSS px. Colors are sRGB floats 0–1.
 const num = z.number().finite();
@@ -160,6 +161,8 @@ export const TextNode = z
     align: z.enum(["left", "center", "right", "justify"]),
     autoResize: z.enum(["width-and-height", "height"]),
     lineCount: int.positive(),
+    /** One line cut at its bounds' width with "…" (CSS `text-overflow: ellipsis`). */
+    truncate: z.boolean().optional(),
   })
   .superRefine((t, ctx) => {
     // Runs must tile [0, characters.length) exactly, in order.

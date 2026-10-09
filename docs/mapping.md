@@ -167,7 +167,7 @@ The functions in `apps/figma-plugin/src/map/*.ts` are pure (IR → plain propert
 - Anything else (inline-block, padded or colored `<code>`, badges, images, offset or super/subscript spans) stays a box and splits the text around it.
 - White space collapses across element boundaries (`Hello ` + ` <b>world</b>` → one space) and is trimmed at the ends; `pre`/`pre-wrap` keep theirs. Adjacent runs with the same style merge.
 - Bounds: all line fragments of the run grouped into lines. One line hugs the text; several lines take the block's content width, so Figma wraps at the same width. With an explicit line-height each line grows by its half-leading.
-- `text-overflow: ellipsis` (`truncate`) is drawn as clipped full text — Figma has no ellipsis truncation — with `UNSUPPORTED_CSS`. The characters are kept whole for editing.
+- `text-overflow: ellipsis` (`truncate`) on one overflowing line → `truncate: true`, bounds cut at the clipping content box; Figma draws it with `textTruncation: ENDING`, `maxLines: 1` at that width. The characters are kept whole for editing. Ellipsis on wrapped text is drawn clipped (`UNSUPPORTED_CSS`).
 - Approximated: text that starts mid-line after a split (or with `text-indent`) and wraps is drawn from the line start (`UNSUPPORTED_CSS`, approximated). Horizontal margins on inline elements are lost.
 
 **Font names.** next/font renames families: `__notoSansDevanagari_e075aa` → "Noto Sans Devanagari", and its `__…_Fallback_…` (a metric-adjusted local font) is dropped from the stack.

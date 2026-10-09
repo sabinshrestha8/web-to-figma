@@ -2,14 +2,14 @@
 
 Source of truth: [`packages/ir/src/schema.ts`](../packages/ir/src/schema.ts) (Zod 4). TypeScript types come from `z.infer`.
 - Generated JSON Schema: [`ir.schema.json`](ir.schema.json). It's kept in sync by `tests/docs.test.ts`; run `pnpm test -u` to regenerate it.
-- Current version: **`1.3`**. Changelog: 1.1 adds optional `tileSize` (CSS px) to image paints, used with `scale: "tile"`. 1.2 adds the diagnostic code `SCROLL_CONTAINER_EXPANDED`. 1.3 adds optional `crop` (x, y, width, height as fractions of the image) to image paints and an optional `fallback` asset (PNG of the same markup) to vector nodes.
+- Current version: **`1.4`**. Changelog: 1.1 adds optional `tileSize` (CSS px) to image paints, used with `scale: "tile"`. 1.2 adds the diagnostic code `SCROLL_CONTAINER_EXPANDED`. 1.3 adds optional `crop` (x, y, width, height as fractions of the image) to image paints and an optional `fallback` asset (PNG of the same markup) to vector nodes. 1.4 adds optional `truncate` (one line ending in "…" at its bounds) to text nodes.
 
 The IR is **independent of React, CSS and Figma**. It describes boxes, text and vectors with *verified* layout. CSS facts (margins, `display`, `justify-content: space-evenly`, …) live only in the capture snapshot. Any target that understands stacks, grids and absolute positioning can consume the IR, Figma or otherwise.
 
 ## Shape
 
 ```
-Document   schemaVersion "1.3", generator {name, version}, captures[≥1], assets {sha256 → AssetMeta}, diagnostics[]
+Document   schemaVersion "1.4", generator {name, version}, captures[≥1], assets {sha256 → AssetMeta}, diagnostics[]
 Capture    id, url, title, viewport {width, height, dpr}, root: BoxNode, screenshot?: AssetId
 Node       BoxNode | TextNode | VectorNode            (discriminated by `type`)
   common   id, name, bounds {x,y,width,height}, rotation?, opacity, blendMode, effects[],
@@ -18,7 +18,7 @@ Node       BoxNode | TextNode | VectorNode            (discriminated by `type`)
 BoxNode    fills[] (bottom first), stroke? {color, weights{t,r,b,l}, style solid|dashed|dotted},
            radius [tl,tr,br,bl], clip, layout, children[]
 TextNode   characters, runs[{start, end, style}], align left|center|right|justify,
-           autoResize width-and-height|height, lineCount
+           autoResize width-and-height|height, lineCount, truncate?
 TextStyle  families[] (CSS stack), weight 1–1000, italic, size, lineHeight px|"auto",
            letterSpacing px, transform, decoration, color
 VectorNode svg (sanitized markup, ≤ 500 KB), fallback? (asset id)
@@ -59,7 +59,7 @@ Structural typing is enforced by Zod. On top of that, the document-level checks 
 ## Bundle (`.w2f.json`)
 
 ```json
-{ "format": "w2f-bundle", "ir": { "schemaVersion": "1.3", … }, "assetData": { "<sha256>": "<base64>" } }
+{ "format": "w2f-bundle", "ir": { "schemaVersion": "1.4", … }, "assetData": { "<sha256>": "<base64>" } }
 ```
 
 `parseBundle` validates the envelope, runs `parseDocument` on `ir`, and requires `assetData` keys to match `ir.assets` exactly.

@@ -221,6 +221,13 @@ describe("article fixture → IR", async () => {
     return run.style;
   };
 
+  it("truncates a `truncate` line at its 128 px box instead of clipping it", () => {
+    const t = text("2083-06-24");
+    expect(t).toMatchObject({ truncate: true, autoResize: "height", lineCount: 1 });
+    expect(t.bounds.width).toBeCloseTo(128, 0);
+    expect(t.characters).toBe("2083-06-24 (2026-10-10) to 2083-06-30");
+  });
+
   it("draws the wrapped paragraph as one text node with a run per inline style", () => {
     const intro = text("Converters work from");
     expect(intro.characters).toBe(
