@@ -239,19 +239,27 @@ function applyLayout(frame: FrameNode, n: BoxNode) {
 
 /**
  * After appendChild, an auto-layout child takes its IR sizing; absolute children pin to their
- * measured spot relative to the parent. Sizing is set after append, per the Figma docs.
+ * measured spot relative to the parent. Sizing is set after append, per the Figma docs, and
+ * FIXED axes are re-enforced to the measured size: appending can re-resolve a fresh child's size,
+ * and setting FIXED afterwards would otherwise lock the shrunk size (space-between collapsing).
  * Children of a `none` frame are already placed at absolute coordinates: Figma rejects
  * layout props there, so there is nothing to apply.
  */
 function placeInAutoLayout(built: SceneNode, child: Node, parent: BoxNode) {
-  if (!("layoutSizingHorizontal" in built)) return;
+  if (!("layoutSizingHorizontal" in built) || !("resizeWithoutConstraints" in built)) return;
   const props = childLayout(child, parent.layout.mode);
   if (!props) return;
   built.layoutSizingHorizontal = props.horizontal;
   built.layoutSizingVertical = props.vertical;
+  const r = relative(child.bounds, parent.bounds);
+  if (props.fixWidth || props.fixHeight) {
+    built.resizeWithoutConstraints(
+      props.fixWidth ? r.width : built.width,
+      props.fixHeight ? r.height : built.height,
+    );
+  }
   if (props.absolute) {
     built.layoutPositioning = "ABSOLUTE";
-    const r = relative(child.bounds, parent.bounds);
     built.x = r.x;
     built.y = r.y;
   }

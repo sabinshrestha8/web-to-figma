@@ -91,11 +91,19 @@ export function childLayout(
     position: string;
   },
   parentMode: "none" | "stack" | "grid",
-): { horizontal: SizingProp; vertical: SizingProp; absolute: boolean } | null {
+): {
+  horizontal: SizingProp;
+  vertical: SizingProp;
+  absolute: boolean;
+  fixWidth: boolean;
+  fixHeight: boolean;
+} | null {
   if (parentMode === "none") return null;
   return {
     horizontal: sizingProp(child.sizing.horizontal),
     vertical: sizingProp(child.sizing.vertical),
     absolute: child.position === "absolute" || child.position === "fixed",
+    fixWidth: child.sizing.horizontal === "fixed",
+    fixHeight: child.sizing.vertical === "fixed",
   };
 }

@@ -369,7 +369,13 @@ describe("layout", () => {
   it("applies child layout props only under stacks and grids, never under none", () => {
     const flow = { sizing: { horizontal: "fill", vertical: "fixed" } as const, position: "flow" };
     const absolute = { sizing: { horizontal: "fixed", vertical: "fixed" } as const, position: "absolute" };
-    expect(childLayout(flow, "stack")).toEqual({ horizontal: "FILL", vertical: "FIXED", absolute: false });
+    expect(childLayout(flow, "stack")).toEqual({
+      horizontal: "FILL",
+      vertical: "FIXED",
+      absolute: false,
+      fixWidth: false,
+      fixHeight: true,
+    });
     expect(childLayout(absolute, "stack")).toMatchObject({ absolute: true });
     expect(childLayout(flow, "grid")).toMatchObject({ horizontal: "FILL", absolute: false });
     // Figma rejects layout props under a none frame: those children are already absolute.
