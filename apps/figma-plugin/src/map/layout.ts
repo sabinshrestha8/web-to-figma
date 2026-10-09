@@ -82,3 +82,20 @@ export type SizingProp = "FIXED" | "HUG" | "FILL";
 export function sizingProp(s: "fixed" | "hug" | "fill"): SizingProp {
   return s === "fill" ? "FILL" : s === "hug" ? "HUG" : "FIXED";
 }
+
+/** What a child needs inside an Auto Layout parent. Null under `none`: those children are already
+ * placed at absolute coordinates, and Figma rejects layout props there (FIGMA_BUILD_FAILED). */
+export function childLayout(
+  child: {
+    sizing: { horizontal: "fixed" | "hug" | "fill"; vertical: "fixed" | "hug" | "fill" };
+    position: string;
+  },
+  parentMode: "none" | "stack" | "grid",
+): { horizontal: SizingProp; vertical: SizingProp; absolute: boolean } | null {
+  if (parentMode === "none") return null;
+  return {
+    horizontal: sizingProp(child.sizing.horizontal),
+    vertical: sizingProp(child.sizing.vertical),
+    absolute: child.position === "absolute" || child.position === "fixed",
+  };
+}

@@ -11,7 +11,7 @@ import type {
 import { blendMode, effects, rotatedTransform, strokeProps } from "./map/box.ts";
 import { type FontReportEntry, fontKey, indexFonts, planFonts, styleKey } from "./map/fonts.ts";
 import { relative } from "./map/geometry.ts";
-import { gridProps, sizingProp, stackProps } from "./map/layout.ts";
+import { childLayout, gridProps, stackProps } from "./map/layout.ts";
 import { paints } from "./map/paint.ts";
 import { nodeProps, reflowed, runProps } from "./map/text.ts";
 
@@ -240,12 +240,16 @@ function applyLayout(frame: FrameNode, n: BoxNode) {
 /**
  * After appendChild, an auto-layout child takes its IR sizing; absolute children pin to their
  * measured spot relative to the parent. Sizing is set after append, per the Figma docs.
+ * Children of a `none` frame are already placed at absolute coordinates: Figma rejects
+ * layout props there, so there is nothing to apply.
  */
 function placeInAutoLayout(built: SceneNode, child: Node, parent: BoxNode) {
   if (!("layoutSizingHorizontal" in built)) return;
-  built.layoutSizingHorizontal = sizingProp(child.sizing.horizontal);
-  built.layoutSizingVertical = sizingProp(child.sizing.vertical);
-  if (child.position === "absolute" || child.position === "fixed") {
+  const props = childLayout(child, parent.layout.mode);
+  if (!props) return;
+  built.layoutSizingHorizontal = props.horizontal;
+  built.layoutSizingVertical = props.vertical;
+  if (props.absolute) {
     built.layoutPositioning = "ABSOLUTE";
     const r = relative(child.bounds, parent.bounds);
     built.x = r.x;

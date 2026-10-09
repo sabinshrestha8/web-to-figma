@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { blendMode, effects, rotatedTransform, strokeProps } from "./box.ts";
 import { indexFonts, parseStyleName, planFonts, resolveFont } from "./fonts.ts";
 import { relative } from "./geometry.ts";
-import { gridProps, sizingProp, stackProps } from "./layout.ts";
+import { childLayout, gridProps, sizingProp, stackProps } from "./layout.ts";
 import { linearTransform, paints, radialTransform } from "./paint.ts";
 import { reflowed, runProps } from "./text.ts";
 
@@ -364,5 +364,16 @@ describe("layout", () => {
       }),
     ).toMatchObject({ columnCount: 2, rowCount: 1, columnSizes: [200, 200], columnGap: 20 });
     expect([sizingProp("fixed"), sizingProp("hug"), sizingProp("fill")]).toEqual(["FIXED", "HUG", "FILL"]);
+  });
+
+  it("applies child layout props only under stacks and grids, never under none", () => {
+    const flow = { sizing: { horizontal: "fill", vertical: "fixed" } as const, position: "flow" };
+    const absolute = { sizing: { horizontal: "fixed", vertical: "fixed" } as const, position: "absolute" };
+    expect(childLayout(flow, "stack")).toEqual({ horizontal: "FILL", vertical: "FIXED", absolute: false });
+    expect(childLayout(absolute, "stack")).toMatchObject({ absolute: true });
+    expect(childLayout(flow, "grid")).toMatchObject({ horizontal: "FILL", absolute: false });
+    // Figma rejects layout props under a none frame: those children are already absolute.
+    expect(childLayout(flow, "none")).toBeNull();
+    expect(childLayout(absolute, "none")).toBeNull();
   });
 });
