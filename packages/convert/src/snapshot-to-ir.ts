@@ -75,7 +75,12 @@ export function paintOrder<T extends RawElement | { kind: "text" | "inline" }>(
 
 const near = (a: number, b: number) => Math.abs(a - b) < 0.5;
 
-/** A wrapper that paints nothing around a single same-sized child is noise: keep only the child. */
+/**
+ * A wrapper that paints nothing around a single same-sized child is noise: keep only the child.
+ * So is one around a single line of text whose line box stands up to 2 px proud of it (an inherited
+ * line-height taller than the span): kept, no stack verifies the overhang and the span stays a FIXED
+ * frame, so Figma's wider glyphs spill over the next item ("03:09:05" over "AM") instead of pushing it.
+ */
 export function flatten(box: BoxNode): Node {
   const [only] = box.children;
   const paintless =
@@ -89,8 +94,22 @@ export function flatten(box: BoxNode): Node {
   if (!only || box.children.length !== 1 || !paintless) return box;
   const a = box.bounds;
   const b = only.bounds;
-  if (!(near(a.x, b.x) && near(a.y, b.y) && near(a.width, b.width) && near(a.height, b.height))) return box;
-  return box.position === "flow" ? only : { ...only, position: box.position };
+  const sameX = near(a.x, b.x) && near(a.width, b.width);
+  const same = sameX && near(a.y, b.y) && near(a.height, b.height);
+  const textLine =
+    only.type === "text" &&
+    only.lineCount === 1 &&
+    sameX &&
+    Math.abs(a.height - b.height) <= 2 &&
+    Math.abs(a.y + a.height / 2 - (b.y + b.height / 2)) <= 1;
+  if (!same && !textLine) return box;
+  // FILL meant "fill the wrapper", which is going away: the new parent's layout decides again.
+  const keep = (s: "fixed" | "hug" | "fill") => (s === "fill" ? "fixed" : s);
+  return {
+    ...only,
+    sizing: { horizontal: keep(only.sizing.horizontal), vertical: keep(only.sizing.vertical) },
+    position: box.position === "flow" ? only.position : box.position,
+  };
 }
 
 /**

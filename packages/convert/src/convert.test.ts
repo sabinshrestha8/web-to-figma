@@ -356,6 +356,40 @@ describe("snapshotToIR box fidelity", () => {
     expect(only).toMatchObject({ name: "section", position: "absolute" });
   });
 
+  it("drops a flattened child's FILL: it filled the wrapper, not the new parent", () => {
+    // MUI endIcon: <span display:flex> stretches the icon; the button centers the span.
+    const snap = page((body) => {
+      const btn = el(
+        body.id,
+        "button",
+        { x: 0, y: 0, width: 40, height: 34 },
+        { ...bg("rgb(1, 1, 1)"), display: "flex", "align-items": "center", "padding-left": "10px" },
+      );
+      const span = el(btn.id, "span", { x: 10, y: 11, width: 12, height: 12 }, { display: "flex" });
+      return [btn, span, el(span.id, "i", { x: 10, y: 11, width: 12, height: 12 }, bg("rgb(2, 2, 2)"))];
+    });
+    const icon = all(convert(snap).capture.root).find((n) => n.name === "i");
+    expect(icon?.sizing).toEqual({ horizontal: "fixed", vertical: "fixed" });
+  });
+
+  it("flattens a span around one text line whose line box overhangs it", () => {
+    const snap = page((body) => {
+      const row = el(
+        body.id,
+        "time",
+        { x: 0, y: 0, width: 80, height: 19 },
+        { display: "flex", "align-items": "baseline", "column-gap": "4px" },
+      );
+      const span = el(row.id, "span", { x: 0, y: 0, width: 50, height: 19 }, { "line-height": "20.4px" });
+      const am = el(row.id, "small", { x: 54, y: 3, width: 26, height: 14 }, bg("rgb(1, 1, 1)"));
+      return [row, span, txt(span.id, "03:09:05", [{ x: 0, y: 2, width: 50, height: 15 }]), am];
+    });
+    const row = box(all(convert(snap).capture.root).find((n) => n.name === "time"));
+    expect(row.children.map((c) => c.type)).toEqual(["text", "box"]);
+    expect(row.layout).toMatchObject({ mode: "stack", align: "baseline" });
+    expect(row.children[0]?.sizing.horizontal).toBe("hug");
+  });
+
   it("maps border, radius, shadow, blend, clip and gradient layers onto the box", () => {
     const snap = page((body) => [
       el(
@@ -671,20 +705,34 @@ describe("inline formatting contexts", () => {
     expect(diagnostics).toEqual([]);
   });
 
-  it("reports truncated text as clipped full text, keeping the characters", () => {
-    const snap = page((body) => {
-      const p = el(
-        body.id,
-        "p",
-        { x: 0, y: 0, width: 200, height: 24 },
-        { "text-overflow": "ellipsis", "white-space": "nowrap" },
-      );
-      return [p, txt(p.id, "A very long truncated line", [line(0, 190)])];
+  it("truncates an overflowing ellipsis line at the content box, keeping the characters", () => {
+    const text = (width: number) => {
+      const snap = page((body) => {
+        const p = el(
+          body.id,
+          "p",
+          { x: 0, y: 0, width: 200, height: 24 },
+          {
+            "text-overflow": "ellipsis",
+            "white-space": "nowrap",
+            "overflow-x": "hidden",
+            "overflow-y": "hidden",
+          },
+        );
+        return [p, txt(p.id, "A very long truncated line", [line(0, width)])];
+      });
+      const { capture, diagnostics } = convert(snap);
+      expect(diagnostics).toEqual([]);
+      return all(capture.root).find((n) => n.type === "text");
+    };
+    expect(text(260)).toMatchObject({
+      characters: "A very long truncated line",
+      truncate: true,
+      autoResize: "height",
+      sizing: { horizontal: "fixed" },
+      bounds: { width: 200 },
     });
-    const { capture, diagnostics } = convert(snap);
-    const t = all(capture.root).find((n) => n.type === "text");
-    expect(t?.characters).toBe("A very long truncated line");
-    expect(diagnostics.map((d) => [d.code, d.fallback])).toEqual([["UNSUPPORTED_CSS", "approximated"]]);
+    expect(text(190)).not.toHaveProperty("truncate"); // fits: nothing cut
   });
 
   it.each([
