@@ -127,19 +127,18 @@ function simulateStack(
   const crossSize = (w: number, h: number) => (horizontal ? h : w);
   const sized = items.map((p) => ({ item: p.item, w: p.w, h: p.h, grow: growOf(p.item.raw) }));
 
-  // Fill distribution along the main axis (flex-grow). Shrink is not modeled: overflow + fill fails.
+  // Figma FILL children split the space left after fixed children equally: unlike CSS flex-grow,
+  // ratios and flex-basis don't count. Verification then rejects a browser result that differs.
   const distribute = (line: typeof sized, contentMain: number): boolean => {
-    const base = line.reduce((s, p) => s + mainSize(p.w, p.h), 0);
-    const gaps = opts.gap * Math.max(0, line.length - 1);
-    const free = contentMain - base - gaps;
-    const totalGrow = line.reduce((s, p) => s + p.grow, 0);
-    if (totalGrow > 0) {
-      if (free < -VERIFY_PX) return false;
-      for (const p of line) {
-        const add = free > 0 ? (free * p.grow) / totalGrow : 0;
-        if (horizontal) p.w += add;
-        else p.h += add;
-      }
+    const fills = line.filter((p) => p.grow > 0);
+    if (fills.length === 0) return true;
+    if (opts.wrap) return false; // ponytail: FILL inside wrapped rows unmodeled; absolute instead
+    const fixed = line.filter((p) => p.grow === 0).reduce((s, p) => s + mainSize(p.w, p.h), 0);
+    const each = (contentMain - fixed - opts.gap * Math.max(0, line.length - 1)) / fills.length;
+    if (each < 0) return false;
+    for (const p of fills) {
+      if (horizontal) p.w = each;
+      else p.h = each;
     }
     return true;
   };
@@ -349,29 +348,33 @@ function stacking(
   if (!gaps.every((g) => Math.abs(g - g0) <= GAP_PX)) return null;
   const gap = gaps.length ? Math.max(0, g0) : 0;
   // Cross axis: consistent start offsets, centers, or ends.
+  // Cross padding: start keeps the measured offset (and the far side up to the widest child),
+  // center needs none, end keeps the measured end offset; Figma aligns within the padded box.
   const offsets = items.map((it) => cross(it.node) - innerCross);
   const off0 = offsets[0] ?? 0;
-  let align: Align = "start";
-  let padCross = off0;
+  const ends = items.map((it) => innerCross + innerCrossSize - (cross(it.node) + crossSize(it.node)));
+  const e0 = ends[0] ?? 0;
+  let align: Align;
+  let padCross: number;
+  let padCrossEnd: number;
   if (offsets.every((o) => Math.abs(o - off0) <= GAP_PX)) {
     align = "start";
+    padCross = off0;
+    padCrossEnd = Math.min(...ends);
+  } else if (
+    items.every(
+      (it) => Math.abs(cross(it.node) + crossSize(it.node) / 2 - (innerCross + innerCrossSize / 2)) <= GAP_PX,
+    )
+  ) {
+    align = "center";
+    padCross = 0;
+    padCrossEnd = 0;
+  } else if (ends.every((e) => Math.abs(e - e0) <= GAP_PX)) {
+    align = "end";
+    padCross = 0;
+    padCrossEnd = e0;
   } else {
-    const centers = items.map(
-      (it) => cross(it.node) + crossSize(it.node) / 2 - (innerCross + innerCrossSize / 2),
-    );
-    if (centers.every((c) => Math.abs(c) <= GAP_PX)) {
-      align = "center";
-      padCross = 0;
-    } else {
-      const ends = items.map((it) => innerCross + innerCrossSize - (cross(it.node) + crossSize(it.node)));
-      const e0 = ends[0] ?? 0;
-      if (ends.every((e) => Math.abs(e - e0) <= GAP_PX)) {
-        align = "end";
-        padCross = 0;
-      } else {
-        return null;
-      }
-    }
+    return null;
   }
   const first = items[0]?.node.bounds;
   const last = items[items.length - 1]?.node.bounds;
@@ -380,23 +383,12 @@ function stacking(
   const innerMain = axis === "vertical" ? inner.height : inner.width;
   const lastEnd = axis === "vertical" ? last.y + last.height - inner.y : last.x + last.width - inner.x;
   const padMainEnd = Math.max(0, innerMain - lastEnd);
+  const crossStart = round2(Math.max(0, padCross));
+  const crossEnd = round2(Math.max(0, padCrossEnd));
   const padding =
     axis === "vertical"
-      ? {
-          top: round2(padMainStart),
-          right: 0,
-          bottom: round2(padMainEnd),
-          left: round2(Math.max(0, padCross)),
-        }
-      : { top: round2(Math.max(0, padCross)), right: 0, bottom: 0, left: round2(padMainStart) };
-  // Right/bottom padding from the farthest child edge.
-  if (axis === "vertical") {
-    const maxRight = Math.max(...items.map((it) => it.node.bounds.x + it.node.bounds.width - inner.x));
-    padding.right = round2(Math.max(0, inner.width - maxRight));
-  } else {
-    const maxBottom = Math.max(...items.map((it) => it.node.bounds.y + it.node.bounds.height - inner.y));
-    padding.bottom = round2(Math.max(0, inner.height - maxBottom));
-  }
+      ? { top: round2(padMainStart), right: crossEnd, bottom: round2(padMainEnd), left: crossStart }
+      : { top: crossStart, right: round2(padMainEnd), bottom: crossEnd, left: round2(padMainStart) };
   return {
     layout: {
       mode: "stack",
@@ -495,15 +487,15 @@ function candidateGrid(el: RawElement, flow: LayoutItem[]): Candidate | null {
 }
 
 /**
- * Children in the verified visual order: flow items as the candidate ordered them, then
- * out-of-flow items in incoming order. Figma positions Auto Layout children by list order and
- * ignores their stored coordinates, so storing any other order (e.g. paint order) reflows the
- * frame away from the verified positions. Per mapping §3 step 7.
+ * Children in the verified visual order. Figma positions Auto Layout flow children by list order
+ * and ignores their stored coordinates, so flow slots take the candidate's order; absolute children
+ * don't take part in the flow and keep their paint-order slot, so a `-z-10` backdrop stays behind
+ * the content instead of covering it. Per mapping §3 step 7.
  */
 function orderResult(items: LayoutItem[], visualFlow: LayoutItem[]): Node[] {
   const flowIds = new Set(visualFlow.map((it) => it.node.id));
-  const absolute = items.filter((it) => !flowIds.has(it.node.id));
-  return [...visualFlow.map((it) => it.node), ...absolute.map((it) => it.node)];
+  let k = 0;
+  return items.map((it) => (flowIds.has(it.node.id) ? (visualFlow[k++] ?? it).node : it.node));
 }
 
 /** Main entry: bottom-up per container. Children must already carry final bounds. */
@@ -527,14 +519,26 @@ export function inferLayout(el: RawElement, items: LayoutItem[], nodeId: string)
 
   // A: flex intent (with fill sizing), then verify.
   const a = candidateA(el, flow);
-  if (a) {
+  if (a && a.layout.mode === "stack") {
+    const horizontal = a.layout.direction === "horizontal";
     const stretch =
       el.style["align-items"].trim() === "stretch" || el.style["align-items"].trim() === "normal";
+    const b = borders(el);
+    const p = a.layout.padding;
+    const contentCross = horizontal
+      ? el.rect.height - b.top - b.bottom - p.top - p.bottom
+      : el.rect.width - b.left - b.right - p.left - p.right;
     for (const it of a.flow) {
       const grow = growOf(it.raw);
       const self = selfOf(it.raw?.style["align-self"]);
-      const crossFill = stretch && (self === "auto" || self === "normal" || self === "stretch");
-      const horizontal = a.layout.mode === "stack" && a.layout.direction === "horizontal";
+      // Stretch only reaches items without an explicit cross size (an h-8 avatar stays 32 px), so
+      // FILL only what the browser actually stretched across a single line.
+      const itemCross = horizontal ? it.node.bounds.height : it.node.bounds.width;
+      const crossFill =
+        stretch &&
+        !a.layout.wrap &&
+        (self === "auto" || self === "normal" || self === "stretch") &&
+        within(itemCross, contentCross);
       const mainFill = grow > 0;
       updates.set(it.node.id, {
         horizontal: (horizontal ? mainFill : crossFill) ? "fill" : it.node.sizing.horizontal,
@@ -602,12 +606,7 @@ export function inferLayout(el: RawElement, items: LayoutItem[], nodeId: string)
     updates.set(it.node.id, {
       horizontal: it.node.sizing.horizontal,
       vertical: it.node.sizing.vertical,
-      position:
-        outOfFlow(it.raw) || it.raw?.style.position === "fixed"
-          ? it.raw?.style.position === "fixed"
-            ? "fixed"
-            : "absolute"
-          : "absolute",
+      position: it.raw?.style.position === "fixed" ? "fixed" : "absolute",
     });
   }
   const reason = `no stack or grid candidate verified for display ${el.style.display || "block"}`;
