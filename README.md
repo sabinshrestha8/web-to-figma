@@ -6,7 +6,7 @@ Convert a rendered React/Next.js page into an **editable** Figma design: real fr
 Rendered web UI → DOM + computed layout → UI IR (versioned, neutral) → Figma plugin → editable design
 ```
 
-**Status:** Phase 6 of 9 done (layout engine), plus drift tooling. Pages convert end to end with **verified Auto Layout**: flex, wrap, baseline rows, block stacking and grids become stacks and fixed-track grids wherever a simulation reproduces the measured positions within 1 px, absolute positioning elsewhere. Boxes carry borders, radii, gradients (blended like CSS), shadows, blurs, opacity, blend, clipping, rotation and z-order. Each paragraph is one editable text layer with style runs, and CSS ellipsis truncation becomes Figma's native truncation (IR 1.4). Images are real image fills, inline SVG icons are editable vectors, and canvas, video and iframes arrive as raster islands. Captured pages can be diffed node by node against an older capture or against a Figma frame. See [docs/development.md](docs/development.md).
+**Status:** Phase 7 of 9 done (drift watch). Pages convert end to end with **verified Auto Layout**: flex, wrap, baseline rows, block stacking and grids become stacks and fixed-track grids wherever a simulation reproduces the measured positions within 1 px, absolute positioning elsewhere. Boxes carry borders, radii, gradients (blended like CSS), shadows, blurs, opacity, blend, clipping, rotation and z-order. Each paragraph is one editable text layer with style runs, and CSS ellipsis truncation becomes Figma's native truncation (IR 1.4). Images are real image fills, inline SVG icons are editable vectors, and canvas, video and iframes arrive as raster islands. Captured pages can be diffed node by node against an older capture or against a Figma frame. See [docs/development.md](docs/development.md).
 
 ## Quickstart (development)
 
@@ -68,6 +68,30 @@ FIGMA_TOKEN=… pnpm figma-drift --file KEY --node FRAME_ID --bundle after.w2f.j
 ```
 
 `--capture N` picks the viewport (default 0) and `--max N` exits non-zero above N changes. `figma-drift` reads the frame through the read-only REST API; the token needs `file_content:read`.
+
+### Watch pages for drift
+
+List the pages in `.data/drift.config.json`:
+
+```json
+{
+  "maxChanges": 0,
+  "maxPixelPercent": 1,
+  "pages": [
+    { "name": "dashboard", "url": "https://app.example.com/dashboard", "viewport": "1440x900",
+      "storageState": "auth.json", "waitFor": ["[data-loaded]"],
+      "figma": { "file": "FILE_KEY", "node": "12:34" }, "maxFigmaChanges": 20 }
+  ]
+}
+```
+
+```sh
+pnpm drift:run                 # capture every page, diff against its baseline (first run sets it)
+pnpm drift:run --accept        # make this run the new baseline (after an intended change)
+pnpm drift:run --page dashboard
+```
+
+Results land in `.data/drift/`: `report.html` (changes grouped by kind with baseline/now crops, trend, gate result), `history.jsonl`, and per page the baseline, latest capture and `diff.png`. It exits 1 when a page fails or goes over a threshold (`maxChanges`, `maxPixelPercent`, `maxFigmaChanges`, top-level or per page), so it can gate CI. Figma is compared when `FIGMA_TOKEN` is set. To run it on a schedule, use cron, Task Scheduler or a CI job. `storageState` is relative to the config file.
 
 ## Docs
 

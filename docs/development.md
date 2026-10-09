@@ -34,7 +34,8 @@ Build a thin end-to-end slice early, then widen fidelity one area at a time.
 | 4 | Typography | Runs, inline formatting contexts, line metrics, transform/decoration, font resolution + report, `TEXT_REFLOW` | Article paragraphs are single text nodes with correct runs; missing fonts reported |
 | 5 | Images & SVG | Response capture, transcode/downscale, object-fit, bg images, SVG sanitize + `createNodeFromSvg`, fallbacks | No broken images on image-heavy; icons are editable vectors |
 | 6 | Layout engine | Candidates A/B, simulator, flex/wrap/block/grid, sizing, absolute children | nav, card-grid, form, dashboard emit Auto Layout; no visual regression vs Phase 5 |
-| 7 | Web app UX | Next.js flow, job runner, API, guard, preview, diagnostics table, multi-route/viewport | The full user journey works from a clean clone |
+| 7 | Drift watch (reshaped from "Web app UX", 2026-10-10) | Config of watched pages, baselines, node + pixel + Figma diff per run, history, HTML report, CI gate | Unchanged page passes, changed page fails the gate with crops in the report |
+| 7b | Web app UX (deferred) | Next.js flow, job runner, API, guard, preview, diagnostics table, multi-route/viewport | The full user journey works from a clean clone |
 | 8 | Hardening | Full fixture suite, hostile fixtures, perf budgets, security tests, compare script | All fixtures within thresholds; hostile tests pass |
 | 9 | V1 release | Production config, user and dev docs, plugin publish prep, release checklist | Fresh-machine install from the docs succeeds |
 
@@ -173,3 +174,24 @@ Build a thin end-to-end slice early, then widen fidelity one area at a time.
   - absolute children keep their paint-order slot (a `-z-10` backdrop was moved on top of the content);
   - candidate B's center/end alignment gets the right cross padding (centered `mx-auto` blocks never verified).
 - **Plugin:** an Auto Layout frame pins both sizing modes to FIXED and restores its measured size after `layoutMode` is set, so it can't collapse to its content.
+
+### Phase 7: Drift watch (2026-10-10)
+
+Reshaped from "Web app UX": drift (production vs baseline, production vs Figma) is the differentiator, and the engine already existed. The conversion web UI moves to 7b.
+
+- **`pnpm drift:run [drift.config.json] [--accept] [--page NAME]...`** (`packages/capture/src/drift-run.ts`, `drift-run-cli.ts`). A bare config name is read from `.data/`. For every page, it captures, then:
+  - on the first run, saves the baseline;
+  - otherwise diffs nodes (`diffCaptures`) and pixels (`comparePngs`, `diff.png`) against the baseline;
+  - diffs the configured Figma frame when `FIGMA_TOKEN` is set, and the report says when it was skipped.
+- **Config** (Zod, strict): `pages[]` with `name` (path-safe, unique), an http(s) `url`, `viewport`, `storageState` (relative to the config), `waitFor`, `extraSettleMs`, `figma {file,node}`. Thresholds `maxChanges` / `maxPixelPercent` / `maxFigmaChanges`, top-level or per page. `out` (default `drift/`, relative to the config) and `blockPrivate`.
+- **Outputs** under `out/`:
+  - `<page>/{baseline,latest}.{w2f.json,png}` and `diff.png`;
+  - `history.jsonl`, one row per page per run;
+  - `report.html`: summary table, per-page trend sparkline, capture warnings (an expired login shows as `PAGE_REDIRECTED`), changes grouped by kind with baseline/now crops of the screenshot, node outlined (first 40 per section).
+- **Gate:** exit 1 when a page failed or went over a threshold, 2 on bad arguments/config. One failing page doesn't stop the others. A baseline whose viewport no longer matches fails with "rerun with --accept".
+- **Drift entries** now carry `before`/`after` page bounds (for the crops). `fetchFigmaFrame` is shared by `figma-drift` and `drift:run`; `parseViewport` moved to `run.ts`.
+- **Security:** everything from the page in the report is HTML-escaped (mutation-checked); URLs are http(s) only and still go through the capture network policy; page names can't escape `out/`.
+- **Scheduling** is left to cron, Task Scheduler or CI (README). No daemon.
+- **Tests:** config validation and report escaping/crops/gate/trend (unit); a full loop on the fixture site (integration): baseline set → unchanged passes → changed page trips the gate with crops → `--accept` → passes; a blocked page fails without stopping the run; Figma skipped without a token.
+- **Verified by hand:** CLI exit codes 0/1/2; report rendered and inspected (crops clipped and labelled).
+- No IR schema change (still 1.4).

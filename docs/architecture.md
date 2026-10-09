@@ -96,7 +96,7 @@ A modular monolith with two runtimes: the local Node app and the Figma plugin sa
 | `packages/capture/collector` | page | Zero-dependency DOM walker bundled to an IIFE → `RawSnapshot`. Reusable by a future browser extension | Phase 2 |
 | `packages/convert` | anywhere | Pure: `snapshotToIR`, CSS parsers, `flatten`, layout inference + Auto Layout simulator, z-order | Phase 2+ |
 | `packages/preview` | browser/Node | `renderIRToHtml(ir)`, used by the web preview and the visual regression tests | Phase 3 |
-| `apps/web` | Node + browser | UI, API, job store | Phase 7 |
+| `apps/web` | Node + browser | UI, API, job store | Phase 7b |
 | `apps/figma-plugin` | Figma | Bundle import, fonts, node building, post-build checks | Phase 2+ |
 | `fixtures/site` | Node | Next.js fixture app (10 pages + hostile pages) with expectations | Phase 2+ |
 
@@ -153,7 +153,7 @@ Vitest is pinned to 4.x because Vitest 5 requires Node ≥ 22.12. We'll move to 
 
 ```
 web-to-figma/
-  apps/web/              Next.js UI + API                    (Phase 7)
+  apps/web/              Next.js UI + API                    (Phase 7b)
   apps/figma-plugin/     manifest, code.ts, ui, map/*.ts     (Phase 2)
   packages/ir/           schema, diagnostics, migrations, bundle, validate
   packages/capture/      browser, policy, settle, assets, collector, cli
