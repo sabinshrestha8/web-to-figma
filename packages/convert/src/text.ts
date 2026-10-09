@@ -252,6 +252,14 @@ export function inlineText(group: InlineGroup, root: RawElement, ctx: TextContex
   const content = contentBox(root);
   const last = lines.at(-1) ?? first;
   const align = textAlign(s["text-align"]);
+  if (s["text-overflow"] === "ellipsis") {
+    ctx.report.add(
+      "UNSUPPORTED_CSS",
+      "text-overflow: ellipsis is drawn as clipped full text (Figma has no ellipsis truncation)",
+      id,
+      "approximated",
+    );
+  }
   if (multiLine && align === "left" && first.x > content.x + 1) {
     ctx.report.add(
       "UNSUPPORTED_CSS",

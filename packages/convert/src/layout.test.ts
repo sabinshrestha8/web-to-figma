@@ -21,6 +21,7 @@ const defaults: Record<StyleProp, string> = {
   "text-align": "start",
   "text-transform": "none",
   "text-decoration-line": "none",
+  "text-overflow": "clip",
   "vertical-align": "baseline",
   "object-fit": "fill",
   "object-position": "50% 50%",

@@ -94,6 +94,7 @@ const defaults: Record<StyleProp, string> = {
   "text-align": "start",
   "text-transform": "none",
   "text-decoration-line": "none",
+  "text-overflow": "clip",
   "vertical-align": "baseline",
   "object-fit": "fill",
   "object-position": "50% 50%",
@@ -668,6 +669,22 @@ describe("inline formatting contexts", () => {
       },
     ]);
     expect(diagnostics).toEqual([]);
+  });
+
+  it("reports truncated text as clipped full text, keeping the characters", () => {
+    const snap = page((body) => {
+      const p = el(
+        body.id,
+        "p",
+        { x: 0, y: 0, width: 200, height: 24 },
+        { "text-overflow": "ellipsis", "white-space": "nowrap" },
+      );
+      return [p, txt(p.id, "A very long truncated line", [line(0, 190)])];
+    });
+    const { capture, diagnostics } = convert(snap);
+    const t = all(capture.root).find((n) => n.type === "text");
+    expect(t?.characters).toBe("A very long truncated line");
+    expect(diagnostics.map((d) => [d.code, d.fallback])).toEqual([["UNSUPPORTED_CSS", "approximated"]]);
   });
 
   it.each([

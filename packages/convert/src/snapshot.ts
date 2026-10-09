@@ -29,6 +29,7 @@ export const STYLE_PROPS = [
   "text-align",
   "text-transform",
   "text-decoration-line",
+  "text-overflow",
   "vertical-align",
   "padding-top",
   "padding-right",
