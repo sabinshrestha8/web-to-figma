@@ -491,4 +491,65 @@ describe("layout engine", () => {
       padding: { top: 0, right: 0, bottom: 0, left: 0 },
     });
   });
+
+  it("stacks a centered icon button whose text box sits 0.6 px off center", () => {
+    // MUI Button: justify center plus margins, so only the measured stack (B) verifies.
+    const { nodes } = page((b) => {
+      const btn = el(
+        b.id,
+        "button",
+        { x: 0, y: 0, width: 131.84, height: 33.77 },
+        {
+          ...bg("rgb(1, 1, 1)"),
+          display: "inline-flex",
+          "justify-content": "center",
+          "align-items": "center",
+        },
+      );
+      return [
+        btn,
+        el(btn.id, "span", { x: 12.25, y: 9.31, width: 90.47, height: 14 }, bg("rgb(2, 2, 2)")),
+        el(btn.id, "i", { x: 108.35, y: 11.25, width: 11.25, height: 11.25 }, bg("rgb(3, 3, 3)")),
+      ];
+    });
+    const { capture, diagnostics } = convert(nodes);
+    expect(box("button", capture.root).layout).toMatchObject({
+      mode: "stack",
+      direction: "horizontal",
+      align: "center",
+      gap: 5.63,
+      padding: { left: 12.25 },
+    });
+    expect(diagnostics.map((d) => d.code)).not.toContain("LAYOUT_ABSOLUTE_FALLBACK");
+  });
+
+  it("maps a baseline row to align baseline, checking the main axis only", () => {
+    const row = (pmX: number) =>
+      page((b) => {
+        const clock = el(
+          b.id,
+          "time",
+          { x: 0, y: 0, width: 67.7, height: 19.13 },
+          {
+            ...bg("rgb(1, 1, 1)"),
+            display: "inline-flex",
+            "align-items": "baseline",
+            "column-gap": "3.74px",
+          },
+        );
+        return [
+          clock,
+          el(clock.id, "b", { x: 0, y: 0, width: 53.63, height: 19.13 }, bg("rgb(2, 2, 2)")),
+          el(clock.id, "small", { x: pmX, y: 3, width: 10.33, height: 14.72 }, bg("rgb(3, 3, 3)")),
+        ];
+      }).nodes;
+    expect(box("time", convert(row(57.37)).capture.root).layout).toMatchObject({
+      mode: "stack",
+      direction: "horizontal",
+      align: "baseline",
+      gap: 3.74,
+    });
+    // the gap no longer matches CSS: not a baseline row (B may still stack it by measurement)
+    expect(box("time", convert(row(60)).capture.root).layout).not.toMatchObject({ align: "baseline" });
+  });
 });

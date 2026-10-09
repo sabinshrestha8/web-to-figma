@@ -229,7 +229,9 @@ function candidateA(el: RawElement, flow: LayoutItem[]): Candidate | null {
   const justify = justifyOf(el.style["justify-content"]);
   if (!justify) return null;
   const alignRaw = alignOf(el.style["align-items"]);
-  if (!alignRaw || alignRaw === "baseline") return null; // ponytail: baseline → B/fallback
+  if (!alignRaw) return null;
+  // Figma aligns baselines only in single-line rows; a column's baseline is just start in CSS.
+  if (alignRaw === "baseline" && !(horizontal && wrapProp !== "wrap")) return null;
   const align = alignRaw;
   const colGap = gapVal(el.style["column-gap"]);
   const rowGap = gapVal(el.style["row-gap"]);
@@ -287,7 +289,7 @@ function verifyStack(el: RawElement, cand: Candidate, sizes: Map<string, { w: nu
     const s = sizes.get(item.node.id) ?? { w: item.node.bounds.width, h: item.node.bounds.height };
     return { item, w: s.w, h: s.h };
   });
-  // Baseline was rejected in A; stretch is stored as start + fill.
+  // Stretch is stored as start + fill.
   const sim = simulateStack(content, horizontal, placed, {
     gap: l.gap,
     crossGap: l.crossGap,
@@ -300,7 +302,10 @@ function verifyStack(el: RawElement, cand: Candidate, sizes: Map<string, { w: nu
     const e = sim[i];
     if (!e) return false;
     const n = item.node.bounds;
-    if (!(within(e.x, n.x) && within(e.y, n.y))) return false;
+    // ponytail: baselines need font metrics the snapshot doesn't carry, so a baseline row verifies
+    // the main axis only and Figma re-derives the cross offsets from its own glyphs.
+    const crossOk = l.align === "baseline" || (horizontal ? within(e.y, n.y) : within(e.x, n.x));
+    if (!(crossOk && (horizontal ? within(e.x, n.x) : within(e.y, n.y)))) return false;
     // Fill items must also size as simulated (flex-grow distribution).
     if (growOf(item.raw) > 0 && !(within(e.w, n.width) && within(e.h, n.height))) return false;
     return true;
@@ -347,7 +352,8 @@ function stacking(
   const g0 = gaps[0] ?? 0;
   if (!gaps.every((g) => Math.abs(g - g0) <= GAP_PX)) return null;
   const gap = gaps.length ? Math.max(0, g0) : 0;
-  // Cross axis: consistent start offsets, centers, or ends.
+  // Cross axis: consistent start offsets, centers, or ends, within the verify tolerance (a text
+  // box sits ~0.6 px off its button's center from glyph rounding); verifyStack has the final say.
   // Cross padding: start keeps the measured offset (and the far side up to the widest child),
   // center needs none, end keeps the measured end offset; Figma aligns within the padded box.
   const offsets = items.map((it) => cross(it.node) - innerCross);
@@ -357,19 +363,17 @@ function stacking(
   let align: Align;
   let padCross: number;
   let padCrossEnd: number;
-  if (offsets.every((o) => Math.abs(o - off0) <= GAP_PX)) {
+  if (offsets.every((o) => within(o, off0))) {
     align = "start";
     padCross = off0;
     padCrossEnd = Math.min(...ends);
   } else if (
-    items.every(
-      (it) => Math.abs(cross(it.node) + crossSize(it.node) / 2 - (innerCross + innerCrossSize / 2)) <= GAP_PX,
-    )
+    items.every((it) => within(cross(it.node) + crossSize(it.node) / 2, innerCross + innerCrossSize / 2))
   ) {
     align = "center";
     padCross = 0;
     padCrossEnd = 0;
-  } else if (ends.every((e) => Math.abs(e - e0) <= GAP_PX)) {
+  } else if (ends.every((e) => within(e, e0))) {
     align = "end";
     padCross = 0;
     padCrossEnd = e0;
