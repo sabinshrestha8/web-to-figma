@@ -12,7 +12,7 @@ const USAGE = `usage: pnpm w2f <url...> [-v 1440x900[@2]]... [-o out.w2f.json] [
   -o, --out            bundle path (default capture.w2f.json)
       --storage-state  start logged in, from a file saved by \`pnpm w2f:login <login url>\`
       --block-private  refuse loopback/private addresses (hosted-mode policy)
-      --wait-for       capture only after this selector exists (slow dashboards)
+      --wait-for       capture only after this selector exists (slow dashboards; repeatable)
       --extra-settle-ms  extra quiet wait after settling, 0-5000`;
 
 function parseExtraSettleMs(s: string): number {
@@ -38,7 +38,7 @@ async function main() {
       out: { type: "string", short: "o", default: "capture.w2f.json" },
       "block-private": { type: "boolean", default: false },
       "storage-state": { type: "string" },
-      "wait-for": { type: "string" },
+      "wait-for": { type: "string", multiple: true },
       "extra-settle-ms": { type: "string" },
       help: { type: "boolean", short: "h" },
     },
@@ -47,9 +47,9 @@ async function main() {
     console.log(USAGE);
     return values.help ? 0 : 2;
   }
-  const waitForSelector = values["wait-for"]?.trim();
-  if (waitForSelector !== undefined && (waitForSelector === "" || waitForSelector.length > 500)) {
-    throw new Error(`bad --wait-for selector, expected 1-500 characters`);
+  const waitForSelectors = (values["wait-for"] ?? []).map((s) => s.trim()).filter((s) => s !== "");
+  for (const s of waitForSelectors) {
+    if (s.length > 500) throw new Error(`bad --wait-for selector, expected 1-500 characters`);
   }
 
   const started = Date.now();
@@ -58,7 +58,7 @@ async function main() {
     viewports: (values.viewport ?? ["1440x900"]).map(parseViewport),
     allowPrivateNetworks: !values["block-private"],
     ...(values["storage-state"] ? { storageState: loadStorageState(values["storage-state"]) } : {}),
-    ...(waitForSelector ? { waitForSelector } : {}),
+    ...(waitForSelectors.length ? { waitForSelectors } : {}),
     ...(values["extra-settle-ms"] !== undefined
       ? { extraSettleMs: parseExtraSettleMs(values["extra-settle-ms"]) }
       : {}),

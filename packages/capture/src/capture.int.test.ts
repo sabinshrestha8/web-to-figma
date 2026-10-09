@@ -73,7 +73,7 @@ describe("landing fixture → IR", async () => {
 describe("slow content (--wait-for, --extra-settle-ms)", () => {
   it("captures once the selector exists", async () => {
     const r = await capture(`${base}/landing`, desktop, {
-      waitForSelector: '[data-testid="hero-title"]',
+      waitForSelectors: ['[data-testid="hero-title"]', '[data-testid="hero-body"]'],
       extraSettleMs: 100,
     });
     expect(r.ok, JSON.stringify(!r.ok && r.diagnostics)).toBe(true);
@@ -85,7 +85,9 @@ describe("slow content (--wait-for, --extra-settle-ms)", () => {
   });
 
   it("warns but still captures when the selector never appears", async () => {
-    const r = await capture(`${base}/landing`, desktop, { waitForSelector: "[data-testid=no-such-thing]" });
+    const r = await capture(`${base}/landing`, desktop, {
+      waitForSelectors: ["[data-testid=no-such-thing]"],
+    });
     expect(r.ok, JSON.stringify(!r.ok && r.diagnostics)).toBe(true);
     if (!r.ok) return;
     const timeout = r.value.diagnostics.find((d) => d.code === "TIMEOUT");

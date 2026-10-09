@@ -20,8 +20,12 @@ export interface CaptureOptions {
   allowPrivateNetworks?: boolean;
   /** Start logged in: cookies + localStorage from `loadStorageState`. Local mode only. */
   storageState?: StorageState;
-  /** Playwright selector of content that must exist before the snapshot (e.g. data that replaces loading skeletons). */
-  waitForSelector?: string;
+  /**
+   * Playwright selectors of content that must exist before the snapshot (e.g. data that replaces
+   * loading skeletons). Repeatable: every selector must appear. A selector that never appears is
+   * a warning, not a failure: the current state is captured as-is.
+   */
+  waitForSelectors?: string[];
   /** Extra quiet wait after settling, 0–5000 ms (docs/api.md). */
   extraSettleMs?: number;
 }
@@ -247,8 +251,8 @@ async function settle(page: Page, nav: NavState, activity: Activity, diagnostics
  * never appears is a warning, not a failure: the current state is captured as-is.
  */
 async function extraSettle(page: Page, options: CaptureOptions, diagnostics: Diagnostic[]): Promise<void> {
-  const selector = options.waitForSelector?.trim();
-  if (selector) {
+  const selectors = (options.waitForSelectors ?? []).map((s) => s.trim()).filter((s) => s !== "");
+  for (const selector of selectors) {
     await page.waitForSelector(selector, { timeout: LIMITS.waitForSelectorMs }).catch(() => {
       diagnostics.push(
         diag("TIMEOUT", `waitForSelector "${selector}" never appeared; captured the current state`, {
