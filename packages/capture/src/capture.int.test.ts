@@ -70,6 +70,30 @@ describe("landing fixture → IR", async () => {
   });
 });
 
+describe("slow content (--wait-for, --extra-settle-ms)", () => {
+  it("captures once the selector exists", async () => {
+    const r = await capture(`${base}/landing`, desktop, {
+      waitForSelector: '[data-testid="hero-title"]',
+      extraSettleMs: 100,
+    });
+    expect(r.ok, JSON.stringify(!r.ok && r.diagnostics)).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.diagnostics.map((d) => d.code)).not.toContain("TIMEOUT");
+    expect(r.value.snapshot.nodes.some((n) => n.kind === "text" && n.text.includes("Ship designs"))).toBe(
+      true,
+    );
+  });
+
+  it("warns but still captures when the selector never appears", async () => {
+    const r = await capture(`${base}/landing`, desktop, { waitForSelector: "[data-testid=no-such-thing]" });
+    expect(r.ok, JSON.stringify(!r.ok && r.diagnostics)).toBe(true);
+    if (!r.ok) return;
+    const timeout = r.value.diagnostics.find((d) => d.code === "TIMEOUT");
+    expect(timeout?.severity).toBe("warning");
+    expect(r.value.snapshot.nodes.length).toBeGreaterThan(0);
+  });
+});
+
 describe("network policy against real redirects", () => {
   it("follows a same-origin redirect", async () => {
     const r = await capture(`${base}/hostile/redirect-ok`, desktop);
