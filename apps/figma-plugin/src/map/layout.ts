@@ -89,6 +89,8 @@ export function childLayout(
   child: {
     sizing: { horizontal: "fixed" | "hug" | "fill"; vertical: "fixed" | "hug" | "fill" };
     position: string;
+    /** Text only: its IR resize mode. */
+    autoResize?: "width-and-height" | "height";
   },
   parentMode: "none" | "stack" | "grid",
 ): {
@@ -99,11 +101,20 @@ export function childLayout(
   fixHeight: boolean;
 } | null {
   if (parentMode === "none") return null;
+  // Text keeps its own resize mode: Figma's glyphs run a pixel or two wider than the browser's, so
+  // FIXED at the measured width wraps the last letter into a clipped second line ("Attendanc").
+  // Single-line text hugs; multi-line text keeps its width and grows in height.
+  const text = child.autoResize !== undefined;
+  const horizontal =
+    text && child.sizing.horizontal === "fixed" && child.autoResize === "width-and-height"
+      ? "hug"
+      : child.sizing.horizontal;
+  const vertical = text && child.sizing.vertical === "fixed" ? "hug" : child.sizing.vertical;
   return {
-    horizontal: sizingProp(child.sizing.horizontal),
-    vertical: sizingProp(child.sizing.vertical),
+    horizontal: sizingProp(horizontal),
+    vertical: sizingProp(vertical),
     absolute: child.position === "absolute" || child.position === "fixed",
-    fixWidth: child.sizing.horizontal === "fixed",
-    fixHeight: child.sizing.vertical === "fixed",
+    fixWidth: horizontal === "fixed",
+    fixHeight: vertical === "fixed",
   };
 }

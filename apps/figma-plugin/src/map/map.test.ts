@@ -382,4 +382,19 @@ describe("layout", () => {
     expect(childLayout(flow, "none")).toBeNull();
     expect(childLayout(absolute, "none")).toBeNull();
   });
+
+  it("never pins text to the browser's width, so Figma's wider glyphs can't clip the last letter", () => {
+    const fixed = { horizontal: "fixed", vertical: "fixed" } as const;
+    const line = { sizing: fixed, position: "flow", autoResize: "width-and-height" } as const;
+    const para = { sizing: fixed, position: "flow", autoResize: "height" } as const;
+    expect(childLayout(line, "stack")).toMatchObject({ horizontal: "HUG", vertical: "HUG", fixWidth: false });
+    expect(childLayout(para, "stack")).toMatchObject({
+      horizontal: "FIXED",
+      vertical: "HUG",
+      fixWidth: true,
+      fixHeight: false,
+    });
+    const filled = { ...line, sizing: { horizontal: "fill", vertical: "fixed" } } as const;
+    expect(childLayout(filled, "stack")).toMatchObject({ horizontal: "FILL", vertical: "HUG" });
+  });
 });
