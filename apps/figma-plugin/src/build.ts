@@ -34,6 +34,8 @@ interface Ctx {
   reported: Set<string>;
   /** Text nodes Figma wrapped differently (TEXT_REFLOW), reported once with a count. */
   reflowed: IRText[];
+  /** Hug text that rendered wider than measured into a clipped parent (TEXT_REFLOW). */
+  clipped: IRText[];
   built: number;
   total: number;
   progress: (done: number, total: number) => void;
@@ -102,7 +104,7 @@ function common(node: SceneNode & BlendMixin, n: Node) {
   if (n.effects.length) node.effects = effects(n.effects);
 }
 
-function buildText(n: IRText, parent: Rect, ctx: Ctx): TextNode {
+function buildText(n: IRText, parent: Rect, ctx: Ctx, parentClips: boolean): TextNode {
   const t = figma.createText();
   // The default font (Inter Regular) may not be loaded; switch before setting characters.
   const [first] = n.runs;
@@ -134,6 +136,11 @@ function buildText(n: IRText, parent: Rect, ctx: Ctx): TextNode {
   }
   t.textAutoResize = textAutoResize;
   if (reflowed(n, t.height)) ctx.reflowed.push(n);
+  // Hug text that renders wider than measured overflows a clipped parent visibly (cut glyphs).
+  // Fixed-width text owns its width, so only hug text is checked.
+  else if (n.autoResize === "width-and-height" && parentClips && t.width > r.width + 1) {
+    ctx.clipped.push(n);
+  }
   return t;
 }
 
@@ -185,7 +192,7 @@ async function buildBox(n: BoxNode, parent: Rect, ctx: Ctx): Promise<FrameNode |
     applyLayout(node, n);
     node.clipsContent = n.clip;
     for (const child of n.children) {
-      const built = await buildNode(child, n.bounds, ctx);
+      const built = await buildNode(child, n.bounds, ctx, n.clip);
       if (!built) continue;
       if (node.layoutMode === "GRID" && child.gridCell) {
         node.appendChildAt(built, child.gridCell.row, child.gridCell.column);
@@ -265,14 +272,14 @@ function placeInAutoLayout(built: SceneNode, child: Node, parent: BoxNode) {
   }
 }
 
-async function buildNode(n: Node, parent: Rect, ctx: Ctx): Promise<SceneNode | null> {
+async function buildNode(n: Node, parent: Rect, ctx: Ctx, parentClips = false): Promise<SceneNode | null> {
   if (++ctx.built % CHUNK === 0) {
     ctx.progress(ctx.built, ctx.total);
     await new Promise((r) => setTimeout(r, 0)); // keep Figma responsive on large captures
   }
   const node =
     n.type === "text"
-      ? buildText(n, parent, ctx)
+      ? buildText(n, parent, ctx, parentClips)
       : n.type === "vector"
         ? buildVector(n, parent, ctx)
         : await buildBox(n, parent, ctx);
@@ -308,6 +315,7 @@ export async function build(
     diagnostics: fontDiagnostics(plan),
     reported: new Set(),
     reflowed: [],
+    clipped: [],
     built: 0,
     total: ir.captures.reduce((s, c) => s + [...walk(c.root)].length, 0),
     progress,
@@ -348,6 +356,16 @@ export async function build(
         "TEXT_REFLOW",
         `${ctx.reflowed.length} text node(s) wrap to a different height than in the browser, e.g. "${example.name}"`,
         { nodeId: example.id, fallback: "approximated", detail: { count: ctx.reflowed.length } },
+      ),
+    );
+  }
+  const [clipped] = ctx.clipped;
+  if (clipped) {
+    ctx.diagnostics.push(
+      diagnostic(
+        "TEXT_REFLOW",
+        `${ctx.clipped.length} text node(s) render wider than measured and overflow a clipped parent, e.g. "${clipped.name}"`,
+        { nodeId: clipped.id, fallback: "approximated", detail: { count: ctx.clipped.length } },
       ),
     );
   }
