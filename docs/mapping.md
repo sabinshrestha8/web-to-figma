@@ -24,6 +24,7 @@ This document is the contract for `packages/capture/collector`, `packages/conver
 
 **SVG** (`collector/svg.ts`). Each inline `<svg>` is serialized to standalone markup that needs nothing from the page:
 - Computed paint is written as presentation attributes: `color`, `fill`, `stroke` (+ width, opacity, linecap/linejoin, dasharray/offset, miterlimit), `fill-rule`, `clip-rule`, `visibility`, font properties, and `opacity`/`stop-color`/`stop-opacity`. Inherited ones only where they differ from the parent. This resolves classes, `currentColor` and Tailwind's oklch colors (normalized to rgba); lengths lose their `px`; `url(http://page/#id)` becomes `url(#id)`. The root's `opacity` goes to the vector node instead.
+- Geometry set from CSS (SVG 2 `x`/`y`/`width`/`height`/`rx`/`ry`, `cx`/`cy`/`r`, `d`) is copied back as attributes from computed style: MUI X Charts draws every bar as `<rect style="x:…">`, which would otherwise lose its size with the `style` attribute.
 - Shapes hidden with `display:none` are removed.
 - `<use href="#id">` is inlined (3 levels): a `<symbol>` becomes a nested `<svg>` with its viewBox, sized to the `<use>` or the root's user space; anything else is cloned into a `<g>` with the `x`/`y` translate. Targets may live in another svg (sprite sheets). Copied sprite content keeps its inline `style` paint as attributes (its classes are lost), and any `currentColor` left is replaced by the color in scope.
 - Removed: `script`, `foreignObject`, `style`, `iframe`, `animate*`/`set`, unresolved `use`; every `on*`, `class` and `style` attribute; every `href` that isn't `#…` or a `data:image/(png|jpeg|gif|webp)` URL; every other attribute holding a non-fragment `url()`.
@@ -133,7 +134,7 @@ The functions in `apps/figma-plugin/src/map/*.ts` are pure (IR → plain propert
 | Childless box | `createRectangle()` (also for hr/lines) |
 | `stack` | `layoutMode` HORIZONTAL/VERTICAL, `itemSpacing`, `counterAxisSpacing`, `layoutWrap`, `padding*`, `primaryAxisAlignItems` MIN/CENTER/MAX/SPACE_BETWEEN, `counterAxisAlignItems` MIN/CENTER/MAX/BASELINE, `strokesIncludedInLayout` |
 | `grid` | `layoutMode = "GRID"`, `gridColumnCount/gridRowCount`, `gridColumnSizes/gridRowSizes`, `gridColumnGap/gridRowGap`, `setGridChildPosition` (the API exists; check typings at Phase 6) |
-| `sizing` | `layoutSizingHorizontal/Vertical` FIXED/HUG/FILL, set **after** `appendChild` |
+| `sizing` | `layoutSizingHorizontal/Vertical` FIXED/HUG/FILL, set **after** `appendChild`. Text is never pinned to the browser's width: single-line text HUGs, multi-line keeps its width and HUGs in height (Figma's glyphs run slightly wider; FIXED clipped the last letter) |
 | absolute child of a stack | `layoutPositioning = "ABSOLUTE"`, x/y relative to the parent |
 | `solid` | `SOLID` with `opacity = a` |
 | `linear` / `radial` | `GRADIENT_LINEAR` / `GRADIENT_RADIAL` with `gradientTransform` (formula below) |
