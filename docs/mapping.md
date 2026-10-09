@@ -110,16 +110,16 @@ Per container, bottom-up:
    - `padding` → `padding`; the border is accounted for with `strokesIncludedInLayout`.
    - `column-gap/row-gap` → `gap/crossGap`.
    - `justify-content` start/center/end/space-between → `justify`. Anything else → skip to B.
-   - `align-items` → `align`, with stretch → child cross-axis `fill`. `flex-grow > 0` → child main-axis `fill`.
-   - A child whose size equals its content size → `hug`; otherwise `fixed`.
-3. **Simulate** Figma Auto Layout (padding, gap, alignment, fill distribution, greedy wrap) on the measured child sizes. Every in-flow child within **1 px** of its measured rect → accept.
+   - `align-items` → `align`. Stretch → child cross-axis `fill`, but only for a child the browser actually stretched (cross size = the content box, no wrap); a child with its own height (an `h-8` avatar) stays `fixed` at start. `flex-grow > 0` → child main-axis `fill`.
+   - Other children are `fixed` at their measured size (the IR doesn't emit `hug` yet).
+3. **Simulate** Figma Auto Layout (padding, gap, alignment, greedy wrap) on the measured child sizes. FILL children are simulated the Figma way: they split the space left after fixed children **equally** (CSS grow ratios and `flex-basis` don't carry over), so `flex-grow: 1` next to `flex-grow: 2` fails verification, and so does fill inside a wrapping row. Every in-flow child within **1 px** of its measured rect (and fill children within 1 px of their simulated size) → accept.
 4. **Candidate B, from measurements.** Covers block flow, margins and space-evenly.
    - Children must be monotonic along one axis with a constant gap (±0.5 px), which gives `gap`.
-   - The first child's offset gives `padding`; consistent cross offsets give `align`.
+   - The first child's offset gives `padding`; consistent cross offsets give `align`: equal starts → start (padding = the offset), equal centers → center (no cross padding, so `mx-auto` blocks of different widths verify), equal ends → end (padding = the end offset).
    - Simulate again.
 5. **Grid.** Explicit or uniform px tracks with single-cell items → `grid` with fixed tracks (`gridCell` per child). Otherwise try B per row.
 6. **Fallback.** `layout: none`; children are absolutely positioned at measured coordinates; `LAYOUT_ABSOLUTE_FALLBACK` with `detail.reason`.
-7. **Child order.** Non-positioned first, then positioned by z-index, stable on DOM order. Absolute children inside a stack keep `position: absolute`.
+7. **Child order.** Paint order (non-positioned first, then positioned by z-index, stable on DOM order), except that a stack's or grid's flow children take the verified visual order, because Figma places them by list position. Absolute children keep their paint-order slot (a `-z-10` backdrop stays behind the content) and `position: absolute`.
 
 The output is never visually worse than pure absolute positioning, and it's editable wherever that's safe.
 

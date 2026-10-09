@@ -162,3 +162,14 @@ Build a thin end-to-end slice early, then widen fidelity one area at a time.
 - **Verification:** layout asserts (nav stacks, card-grid 3-col grid, form stacks, dashboard shell + fill) in `fidelity.int.test.ts`. Visual diff, budget 5%: landing 0.01%, card-grid 0.02%, boxes 0.13%, article 0.00%, image-heavy 0.09%, svg-icons 0.03% (all identical to Phase 5), nav 0.01%, form 0.13%, dashboard 0.00%.
 - **To verify in Figma:** import a bundle and check the nav header resizes as a space-between stack, the card grid as fixed tracks, the dashboard main column fills, and that absolute children (e.g. badges) stay pinned.
 - No IR schema change (still 1.3).
+
+### Phase 6 follow-up: drift tooling + review fixes (2026-10-09)
+
+- **Capture:** `--wait-for` (repeatable) and `--extra-settle-ms`. All selectors share one 60 s budget, so several missing selectors stay a warning instead of adding up past the 90 s job clock.
+- **Drift:** `pnpm drift` and `pnpm figma-drift` (testing.md). The Figma side now maps radius, clip, strokes, effects, blend, gradients and image fills, and skips hidden paints. Styles compare with tolerance (gap and padding within 1 px), so float noise no longer shows up as "fills, stroke, radius, clip, effects changed".
+- **Layout fixes found in review**, each with a test that failed before:
+  - cross-axis `fill` only for children the browser actually stretched (an `h-8` avatar in a default flex row came out stretched to the row height);
+  - FILL is simulated the Figma way (equal split), so unequal `flex-grow` is no longer accepted as fill;
+  - absolute children keep their paint-order slot (a `-z-10` backdrop was moved on top of the content);
+  - candidate B's center/end alignment gets the right cross padding (centered `mx-auto` blocks never verified).
+- **Plugin:** an Auto Layout frame pins both sizing modes to FIXED and restores its measured size after `layoutMode` is set, so it can't collapse to its content.
