@@ -15,6 +15,9 @@ export interface DriftEntry {
   /** `name#index` segments from the root, e.g. `root / div shell#1 / main main#0`. */
   path: string;
   detail: string;
+  /** Page bounds of the node in the old and new tree (one side only for added/removed). */
+  before?: Node["bounds"];
+  after?: Node["bounds"];
 }
 
 export interface DriftReport {
@@ -116,7 +119,11 @@ function restyleDetail(a: Node, b: Node): string | null {
   return diffs.length ? `${diffs.join(", ")} changed` : null;
 }
 
-function comparePair(a: Node, b: Node, path: string, out: DriftEntry[]): void {
+function comparePair(a: Node, b: Node, path: string, entries: DriftEntry[]): void {
+  const out = {
+    push: (e: Omit<DriftEntry, "before" | "after">) =>
+      entries.push({ ...e, before: a.bounds, after: b.bounds }),
+  };
   if (changed(a.bounds.x, b.bounds.x) || changed(a.bounds.y, b.bounds.y)) {
     out.push({
       kind: "moved",
@@ -156,7 +163,7 @@ function comparePair(a: Node, b: Node, path: string, out: DriftEntry[]): void {
       detail: [sizing, position].filter((s): s is string => s !== null).join("; "),
     });
   }
-  if (a.type === "box" && b.type === "box") compareChildren(a.children, b.children, path, out);
+  if (a.type === "box" && b.type === "box") compareChildren(a.children, b.children, path, entries);
 }
 
 /** Greedy best-match pairing per level; leftovers are added/removed (reorders surface as both). */
@@ -188,12 +195,22 @@ function compareChildren(a: Node[], b: Node[], path: string, out: DriftEntry[]):
     comparePair(old, match, `${path} / ${label(old, i)}`, out);
   }
   for (const { n, i } of removed) {
-    out.push({ kind: "removed", path: `${path} / ${label(n, i)}`, detail: `${n.type} ${n.source.selector}` });
+    out.push({
+      kind: "removed",
+      path: `${path} / ${label(n, i)}`,
+      detail: `${n.type} ${n.source.selector}`,
+      before: n.bounds,
+    });
   }
   for (const j of [...freeB].sort((x, y) => x - y)) {
     const n = b[j];
     if (!n) continue;
-    out.push({ kind: "added", path: `${path} / ${label(n, j)}`, detail: `${n.type} ${n.source.selector}` });
+    out.push({
+      kind: "added",
+      path: `${path} / ${label(n, j)}`,
+      detail: `${n.type} ${n.source.selector}`,
+      after: n.bounds,
+    });
   }
 }
 
