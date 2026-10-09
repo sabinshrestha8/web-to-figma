@@ -252,8 +252,12 @@ async function settle(page: Page, nav: NavState, activity: Activity, diagnostics
  */
 async function extraSettle(page: Page, options: CaptureOptions, diagnostics: Diagnostic[]): Promise<void> {
   const selectors = (options.waitForSelectors ?? []).map((s) => s.trim()).filter((s) => s !== "");
+  // One budget for all selectors: per-selector timeouts would add up past the job wall clock and
+  // turn "captured as-is with a warning" into a fatal TIMEOUT.
+  const deadline = Date.now() + LIMITS.waitForSelectorMs;
   for (const selector of selectors) {
-    await page.waitForSelector(selector, { timeout: LIMITS.waitForSelectorMs }).catch(() => {
+    const timeout = Math.max(1, deadline - Date.now());
+    await page.waitForSelector(selector, { timeout }).catch(() => {
       diagnostics.push(
         diag("TIMEOUT", `waitForSelector "${selector}" never appeared; captured the current state`, {
           severity: "warning",
