@@ -354,6 +354,28 @@ describe("layout engine", () => {
     expect(diagnostics.map((d) => d.code)).toContain("LAYOUT_ABSOLUTE_FALLBACK");
   });
 
+  it("stores the verified visual order, not paint order, so Figma reflows identically", () => {
+    // Real Hajir case: the drawer comes after main in the DOM but paints left of it.
+    const { nodes } = page((b) => {
+      const shell = el(
+        b.id,
+        "div",
+        { x: 0, y: 0, width: 1440, height: 900 },
+        { ...bg("rgb(1, 1, 1)"), display: "flex" },
+      );
+      return [
+        shell,
+        el(shell.id, "main", { x: 83, y: 0, width: 1357, height: 900 }, bg("rgb(2, 2, 2)")),
+        el(shell.id, "nav", { x: 0, y: 0, width: 83, height: 900 }, bg("rgb(3, 3, 3)")),
+      ];
+    });
+    const { capture } = convert(nodes);
+    const shell = box("div", capture.root);
+    expect(shell.layout).toMatchObject({ mode: "stack", direction: "horizontal" });
+    // Figma positions Auto Layout children by list order: nav must come first to stay left.
+    expect(shell.children.map((c) => c.name)).toEqual(["nav", "main"]);
+  });
+
   it("accepts sub-pixel drift but not a 2px shift", () => {
     const build = (dx: number) => {
       const { nodes } = page((b) => {

@@ -494,15 +494,16 @@ function candidateGrid(el: RawElement, flow: LayoutItem[]): Candidate | null {
   };
 }
 
-/** Children keep paint order; with *-reverse the flow items sit in visual (reversed) order. */
-function orderChildren(items: LayoutItem[], visualFlow: LayoutItem[], reverse: boolean): Node[] {
-  if (!reverse) return items.map((it) => it.node);
-  const queue = [...visualFlow];
-  return items.map((it) => {
-    if (outOfFlow(it.raw)) return it.node;
-    const next = queue.shift();
-    return next ? next.node : it.node;
-  });
+/**
+ * Children in the verified visual order: flow items as the candidate ordered them, then
+ * out-of-flow items in incoming order. Figma positions Auto Layout children by list order and
+ * ignores their stored coordinates, so storing any other order (e.g. paint order) reflows the
+ * frame away from the verified positions. Per mapping §3 step 7.
+ */
+function orderResult(items: LayoutItem[], visualFlow: LayoutItem[]): Node[] {
+  const flowIds = new Set(visualFlow.map((it) => it.node.id));
+  const absolute = items.filter((it) => !flowIds.has(it.node.id));
+  return [...visualFlow.map((it) => it.node), ...absolute.map((it) => it.node)];
 }
 
 /** Main entry: bottom-up per container. Children must already carry final bounds. */
@@ -549,7 +550,7 @@ export function inferLayout(el: RawElement, items: LayoutItem[], nodeId: string)
           position: it.raw?.style.position === "fixed" ? "fixed" : "absolute",
         });
       }
-      return { layout: a.layout, children: orderChildren(items, a.flow, a.reverse), updates };
+      return { layout: a.layout, children: orderResult(items, a.flow), updates };
     }
   }
 
@@ -572,7 +573,7 @@ export function inferLayout(el: RawElement, items: LayoutItem[], nodeId: string)
         position: it.raw?.style.position === "fixed" ? "fixed" : "absolute",
       });
     }
-    return { layout: g.layout, children: orderChildren(items, g.flow, false), updates };
+    return { layout: g.layout, children: orderResult(items, g.flow), updates };
   }
 
   // B: measured block stacking, then verify.
@@ -592,7 +593,7 @@ export function inferLayout(el: RawElement, items: LayoutItem[], nodeId: string)
         position: it.raw?.style.position === "fixed" ? "fixed" : "absolute",
       });
     }
-    const children = orderChildren(items, bCand.flow, false);
+    const children = orderResult(items, bCand.flow);
     return { layout: bCand.layout, children, updates };
   }
 
