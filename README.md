@@ -6,7 +6,7 @@ Convert a rendered React/Next.js page into an **editable** Figma design: real fr
 Rendered web UI → DOM + computed layout → UI IR (versioned, neutral) → Figma plugin → editable design
 ```
 
-**Status:** Phase 6 of 9: layout engine. Pages convert end to end with **verified Auto Layout**: flex, wrap, block stacking and grids become stacks and fixed-track grids wherever a simulation reproduces the measured positions within 1 px, absolute positioning elsewhere. Boxes carry borders, radii, gradients, shadows, blurs, opacity, blend, clipping, rotation and z-order. Each paragraph is one editable text layer with style runs (bold, italic, links, colors, decorations, text-shadow), and the plugin shows a font report before building. Images are real image fills (object-fit and background sizing mapped, WebP/AVIF/oversize transcoded), and inline SVG icons are editable vectors. Canvas, video and iframes arrive as raster islands. See [docs/development.md](docs/development.md).
+**Status:** Phase 6 of 9 done (layout engine), plus drift tooling. Pages convert end to end with **verified Auto Layout**: flex, wrap, baseline rows, block stacking and grids become stacks and fixed-track grids wherever a simulation reproduces the measured positions within 1 px, absolute positioning elsewhere. Boxes carry borders, radii, gradients (blended like CSS), shadows, blurs, opacity, blend, clipping, rotation and z-order. Each paragraph is one editable text layer with style runs, and CSS ellipsis truncation becomes Figma's native truncation (IR 1.4). Images are real image fills, inline SVG icons are editable vectors, and canvas, video and iframes arrive as raster islands. Captured pages can be diffed node by node against an older capture or against a Figma frame. See [docs/development.md](docs/development.md).
 
 ## Quickstart (development)
 
@@ -25,6 +25,8 @@ pnpm w2f http://localhost:3000/ -v 1440x900 -v 390x844@2 -o my-page.w2f.json
 ```
 
 This writes one bundle with one capture per viewport, to `.data/my-page.w2f.json`: bare file names (here and in `compare`, `drift`, `figma-drift`) live in the gitignored `.data/`, and are read from there when not in the current folder. A path with a folder (`./x.w2f.json`, `out/x.png`) is used as given. Diagnostics go to stderr. `--block-private` applies the hosted-mode network policy.
+
+For pages that load content late, `--wait-for <selector>` (repeatable; all selectors share one 60 s budget) and `--extra-settle-ms <ms>` hold the capture until it's there.
 
 ### Capture a page behind a login
 
@@ -55,6 +57,17 @@ pnpm compare my-page.w2f.json export.png -o diff.png   # % of pixels differing f
 ```
 
 The diff PNG shows mismatching pixels in red. `--max 5` makes it exit non-zero above 5%.
+
+### Detect drift
+
+Node-level changes (moved, resized, text, restyled, layout, added, removed), as a Markdown report:
+
+```sh
+pnpm drift before.w2f.json after.w2f.json -o drift.md            # two captures of the same page
+FIGMA_TOKEN=… pnpm figma-drift --file KEY --node FRAME_ID --bundle after.w2f.json -o drift.md   # Figma frame vs production
+```
+
+`--capture N` picks the viewport (default 0) and `--max N` exits non-zero above N changes. `figma-drift` reads the frame through the read-only REST API; the token needs `file_content:read`.
 
 ## Docs
 
