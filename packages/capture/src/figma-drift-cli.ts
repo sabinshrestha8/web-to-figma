@@ -35,7 +35,12 @@ if (!token) {
 const parsed = parseBundle(JSON.parse(readFileSync(values.bundle, "utf8")));
 if (!parsed.ok) throw new Error(`bundle: ${parsed.diagnostics.map((d) => d.message).join("; ")}`);
 const bundle: Bundle = parsed.value;
+const max = values.max === undefined ? undefined : Number(values.max);
+if (max !== undefined && !(Number.isInteger(max) && max >= 0))
+  throw new Error(`bad --max "${values.max}", expected 0, 1, ...`);
 const index = Number(values.capture);
+if (!Number.isInteger(index) || index < 0)
+  throw new Error(`bad --capture "${values.capture}", expected 0, 1, ...`);
 const cap = bundle.ir.captures[index];
 if (!cap) throw new Error(`capture index ${index} missing in the bundle`);
 
@@ -49,4 +54,4 @@ const report = diffCaptures(figmaRoot, cap.root);
 const markdown = renderDrift(report);
 if (values.out) writeFileSync(values.out, `${markdown}\n`);
 console.log(markdown);
-if (values.max !== undefined) process.exitCode = report.entries.length > Number(values.max) ? 1 : 0;
+if (max !== undefined) process.exitCode = report.entries.length > max ? 1 : 0;
