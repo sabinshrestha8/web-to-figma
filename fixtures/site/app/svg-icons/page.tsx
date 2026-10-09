@@ -98,6 +98,15 @@ export default function SvgIcons() {
             }}
             fill="#0ea5e9"
           />
+          {/* Two-line label offset in em, like the MUI X Charts donut's center label. */}
+          <text x="12" y="12" fontSize="10" fill="#111827" textAnchor="middle">
+            <tspan x="12" dy="-0.5em">
+              a
+            </tspan>
+            <tspan x="12" dy="1em" fontSize="20">
+              b
+            </tspan>
+          </text>
         </svg>
         {/* biome-ignore lint/security/noDangerouslySetInnerHtml: hostile markup the sanitizer must strip */}
         <span dangerouslySetInnerHTML={{ __html: HOSTILE }} />

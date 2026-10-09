@@ -79,6 +79,10 @@ const GEOMETRY: Record<string, string[]> = {
   path: ["d"],
 };
 
+/** Text offset attributes that take lengths; `em` is resolved here (Figma's importer misplaces it). */
+const TEXT_LENGTHS = ["x", "y", "dx", "dy"];
+const TEXT = new Set(["text", "tspan"]);
+
 /** `viewport`: the root's user-space size, which a sprite's 100% would resolve against. */
 function inlineUses(clone: SVGSVGElement, viewport: { width: number; height: number }) {
   for (let depth = 0; depth < 3; depth++) {
@@ -204,6 +208,19 @@ export function serializeSvg(
     if (el !== svg) {
       const transform = cssTransform(el, cs);
       if (transform) out.setAttribute("transform", transform);
+    }
+    if (TEXT.has(el.localName)) {
+      const em = Number.parseFloat(cs.fontSize);
+      for (const a of TEXT_LENGTHS) {
+        const v = out.getAttribute(a);
+        if (v)
+          out.setAttribute(
+            a,
+            v.replace(/(-?\d*\.?\d+)(em|px)\b/g, (_, n: string, u: string) =>
+              String(Math.round(Number(n) * (u === "em" ? em : 1) * 100) / 100),
+            ),
+          );
+      }
     }
     for (const p of GEOMETRY[el.localName] ?? []) {
       const v = cs.getPropertyValue(p).trim();

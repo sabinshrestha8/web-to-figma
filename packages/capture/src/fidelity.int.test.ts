@@ -188,6 +188,9 @@ describe("svg-icons fixture → IR", async () => {
     expect(bars).toContain('transform="matrix(1, 0, 0, 1, 18, 16)"');
     // fill-box origin (the rect's center) baked in, since SVG transforms run around 0 0
     expect(bars).toContain('transform="translate(2 2) matrix(0.5, 0, 0, 0.5, 0, 0) translate(-2 -2)"');
+    // em offsets resolved against each tspan's own font size
+    expect(bars).toMatch(/<tspan[^>]*dy="-5"/);
+    expect(bars).toMatch(/<tspan[^>]*dy="20"/);
   });
 
   it("strips scripts, handlers, foreignObject, styles, animations and external references", () => {
