@@ -7,9 +7,9 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
-import { convertNode, diffCaptures, type FigmaRestNode, renderDrift } from "@w2f/convert";
+import { diffCaptures, renderDrift } from "@w2f/convert";
 import { type Bundle, parseBundle } from "@w2f/ir";
-import { fetchFigmaNode } from "./figma-api.ts";
+import { fetchFigmaFrame } from "./figma-api.ts";
 import { inPath, outPath } from "./paths.ts";
 
 const { values } = parseArgs({
@@ -45,12 +45,7 @@ if (!Number.isInteger(index) || index < 0)
 const cap = bundle.ir.captures[index];
 if (!cap) throw new Error(`capture index ${index} missing in the bundle`);
 
-const document = (await fetchFigmaNode(values.file, values.node, token)) as FigmaRestNode & {
-  absoluteBoundingBox?: { x: number; y: number; width: number; height: number };
-};
-const frame = document.absoluteBoundingBox ?? { x: 0, y: 0, width: 0, height: 0 };
-const figmaRoot = convertNode(document, cap.root.bounds.x - frame.x, cap.root.bounds.y - frame.y);
-if (figmaRoot.type !== "box") throw new Error("figma: the node is not a frame");
+const figmaRoot = await fetchFigmaFrame(values.file, values.node, token, cap.root.bounds);
 const report = diffCaptures(figmaRoot, cap.root);
 const markdown = renderDrift(report);
 if (values.out) writeFileSync(outPath(values.out), `${markdown}\n`);

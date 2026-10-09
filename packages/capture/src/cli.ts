@@ -2,9 +2,8 @@ import { writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import type { BoxNode, Node } from "@w2f/ir";
 import { closeBrowser } from "./browser.ts";
-import type { Viewport } from "./capture.ts";
 import { outPath } from "./paths.ts";
-import { convertUrls } from "./run.ts";
+import { convertUrls, parseViewport } from "./run.ts";
 import { loadStorageState } from "./storage-state.ts";
 
 const USAGE = `usage: pnpm w2f <url...> [-v 1440x900[@2]]... [-o out.w2f.json] [--storage-state auth.json] [--block-private] [--wait-for selector] [--extra-settle-ms 0-5000]
@@ -21,12 +20,6 @@ function parseExtraSettleMs(s: string): number {
   if (!Number.isInteger(n) || n < 0 || n > 5000)
     throw new Error(`bad --extra-settle-ms "${s}", expected 0-5000`);
   return n;
-}
-
-function parseViewport(s: string): Viewport {
-  const m = /^(\d+)x(\d+)(?:@([12]))?$/.exec(s);
-  if (!m) throw new Error(`bad viewport "${s}", expected e.g. 1440x900 or 390x844@2`);
-  return { width: Number(m[1]), height: Number(m[2]), dpr: Number(m[3] ?? 1) };
 }
 
 const count = (n: Node): number => 1 + (n.type === "box" ? n.children.reduce((s, c) => s + count(c), 0) : 0);

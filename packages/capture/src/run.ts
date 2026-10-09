@@ -31,6 +31,13 @@ export function pngAsset(
   };
 }
 
+/** `1440x900` or `390x844@2`, as the CLIs and drift config spell viewports. */
+export function parseViewport(s: string): Viewport {
+  const m = /^(\d+)x(\d+)(?:@([12]))?$/.exec(s);
+  if (!m) throw new Error(`bad viewport "${s}", expected e.g. 1440x900 or 390x844@2`);
+  return { width: Number(m[1]), height: Number(m[2]), dpr: Number(m[3] ?? 1) };
+}
+
 /** Capture every url × viewport and assemble a validated bundle. Failed captures are reported, not fatal. */
 export async function convertUrls(job: ConvertJob): Promise<Result<Bundle>> {
   const captures: Capture[] = [];
