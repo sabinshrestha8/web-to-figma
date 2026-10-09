@@ -27,7 +27,7 @@ if (!values.file || !values.node || !values.bundle) {
   );
   process.exit(2);
 }
-const token = process.env["FIGMA_TOKEN"];
+const token = process.env.FIGMA_TOKEN;
 if (!token) {
   console.error("FIGMA_TOKEN is not set (Figma → Account settings → Security → Personal access tokens)");
   process.exit(2);
