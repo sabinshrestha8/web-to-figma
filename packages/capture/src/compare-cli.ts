@@ -4,7 +4,8 @@
  * reference screenshot. Given a bundle, its first capture's reference screenshot is used.
  * Exits 1 when the mismatch is above --max percent.
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { parseArgs } from "node:util";
 import { parseBundle } from "@w2f/ir";
 import { closeBrowser } from "./browser.ts";
@@ -33,7 +34,10 @@ function png(path: string): Buffer {
 try {
   const r = await comparePngs(png(a), png(b));
   const pct = r.mismatch * 100;
-  if (values.out) writeFileSync(values.out, r.diff);
+  if (values.out) {
+    mkdirSync(dirname(values.out), { recursive: true });
+    writeFileSync(values.out, r.diff);
+  }
   console.log(
     `${pct.toFixed(2)}% of ${r.width}×${r.height} pixels differ${r.sizeDiffers ? " (sizes differ; compared the overlap)" : ""}`,
   );
