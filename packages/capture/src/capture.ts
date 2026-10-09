@@ -20,6 +20,10 @@ export interface CaptureOptions {
   allowPrivateNetworks?: boolean;
   /** Start logged in: cookies + localStorage from `loadStorageState`. Local mode only. */
   storageState?: StorageState;
+  /** Playwright selector of content that must exist before the snapshot (e.g. data that replaces loading skeletons). */
+  waitForSelector?: string;
+  /** Extra quiet wait after settling, 0–5000 ms (docs/api.md). */
+  extraSettleMs?: number;
 }
 
 export interface CaptureOutput {
@@ -238,6 +242,26 @@ async function settle(page: Page, nav: NavState, activity: Activity, diagnostics
 }
 
 /**
+ * The documented wait options (docs/api.md): a selector for slow content that must exist before
+ * the snapshot (dashboards that skeleton-load), then a short extra quiet wait. A selector that
+ * never appears is a warning, not a failure: the current state is captured as-is.
+ */
+async function extraSettle(page: Page, options: CaptureOptions, diagnostics: Diagnostic[]): Promise<void> {
+  const selector = options.waitForSelector?.trim();
+  if (selector) {
+    await page.waitForSelector(selector, { timeout: LIMITS.waitForSelectorMs }).catch(() => {
+      diagnostics.push(
+        diag("TIMEOUT", `waitForSelector "${selector}" never appeared; captured the current state`, {
+          severity: "warning",
+        }),
+      );
+    });
+  }
+  const extra = Math.min(Math.max(0, Math.floor(options.extraSettleMs ?? 0)), 5000);
+  if (extra > 0) await page.waitForTimeout(extra);
+}
+
+/**
  * If the content scrolls inside an element instead of the document, make the viewport tall enough
  * for it, so the app lays itself out at full height (no CSS overrides). Bounded rounds: the layout
  * may change as the viewport grows.
@@ -337,6 +361,7 @@ export async function capture(
     await navigate(page, url, nav);
     await settle(page, nav, activity, diagnostics);
     await unrollScroller(page, viewport, () => activity.inflight, diagnostics);
+    await extraSettle(page, options, diagnostics);
 
     const collector = await collectorHandle(page);
     const collected = await withTimeout(
