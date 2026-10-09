@@ -79,6 +79,26 @@ const SCALE: Record<string, Extract<Paint, { type: "image" }>["scale"]> = {
   STRETCH: "stretch",
 };
 
+type Stop = { position: number; color: { r: number; g: number; b: number; a: number } };
+
+/**
+ * Drops the sub-stops the plugin adds to emulate CSS's premultiplied blending (paint.ts
+ * premultipliedStops), so drift compares the stops the page declared. A stop is a sub-stop when it
+ * lies on the premultiplied line between its neighbors. ponytail: a declared stop that happens to
+ * lie on that line is dropped too (reported as fill drift).
+ */
+export function collapseStops(stops: Stop[]): Stop[] {
+  const pre = (s: Stop) => [s.color.r * s.color.a, s.color.g * s.color.a, s.color.b * s.color.a, s.color.a];
+  return stops.filter((s, i) => {
+    const prev = stops[i - 1];
+    const next = stops[i + 1];
+    if (!prev || !next || next.position <= prev.position) return true;
+    const t = (s.position - prev.position) / (next.position - prev.position);
+    const [p, n, c] = [pre(prev), pre(next), pre(s)];
+    return !c.every((v, k) => Math.abs((p[k] ?? 0) + ((n[k] ?? 0) - (p[k] ?? 0)) * t - v) <= 0.003);
+  });
+}
+
 /** Figma paints → IR paints, as far as drift needs them. Image bytes are unknown: `assetId` is "". */
 function paintOf(f: FigmaPaint, box: { width: number; height: number }): Paint | null {
   const opacity = f.opacity ?? 1;
@@ -92,7 +112,9 @@ function paintOf(f: FigmaPaint, box: { width: number; height: number }): Paint |
     };
   }
   const [h0, h1, h2] = f.gradientHandlePositions ?? [];
-  const stops = (f.gradientStops ?? []).map((s) => ({ position: s.position, color: rgba(s.color, opacity) }));
+  const stops = collapseStops(
+    (f.gradientStops ?? []).map((s) => ({ position: s.position, color: rgba(s.color, opacity) })),
+  );
   if (!h0 || !h1 || stops.length < 2) return null;
   if (f.type === "GRADIENT_LINEAR") {
     // The handle direction in px is the CSS gradient direction: 0° = up, clockwise.

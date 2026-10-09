@@ -58,6 +58,35 @@ export function cropTransform(crop?: { x: number; y: number; width: number; heig
   ];
 }
 
+type Stop = { position: number; color: RGBA };
+
+/**
+ * CSS interpolates gradient stops with premultiplied alpha, Figma without: fading a 5%-alpha blue to
+ * white tints the whole run blue in Figma, while the browser shows near-white. Segments whose alpha
+ * changes get `steps - 1` sub-stops computed the CSS way, so Figma's straight blend between them
+ * stays within a few levels of the browser. Equal-alpha segments blend the same in both.
+ */
+export function premultipliedStops(stops: readonly Stop[], steps = 8): Stop[] {
+  const out: Stop[] = [];
+  stops.forEach((s, i) => {
+    const prev = stops[i - 1];
+    if (prev && prev.color.a !== s.color.a && s.position > prev.position) {
+      for (let k = 1; k < steps; k++) {
+        const t = k / steps;
+        const a = prev.color.a + (s.color.a - prev.color.a) * t;
+        const mix = (c: "r" | "g" | "b") =>
+          round((prev.color[c] * prev.color.a * (1 - t) + s.color[c] * s.color.a * t) / a);
+        out.push({
+          position: round(prev.position + (s.position - prev.position) * t),
+          color: { r: mix("r"), g: mix("g"), b: mix("b"), a: round(a) },
+        });
+      }
+    }
+    out.push({ position: s.position, color: { ...s.color } });
+  });
+  return out;
+}
+
 export interface PaintEnv {
   /** Box size in px; gradients depend on its aspect ratio. */
   width: number;
@@ -80,7 +109,7 @@ export function paints(fills: readonly IRPaint[], env: PaintEnv): { paints: Pain
       out.push({
         type: "GRADIENT_LINEAR",
         gradientTransform: linearTransform(p.angle, env.width, env.height),
-        gradientStops: p.stops.map((s) => ({ position: s.position, color: { ...s.color } })),
+        gradientStops: premultipliedStops(p.stops),
       });
     } else if (p.type === "radial") {
       if (p.radius.x <= 0 || p.radius.y <= 0) {
@@ -90,7 +119,7 @@ export function paints(fills: readonly IRPaint[], env: PaintEnv): { paints: Pain
       out.push({
         type: "GRADIENT_RADIAL",
         gradientTransform: radialTransform(p.center, p.radius),
-        gradientStops: p.stops.map((s) => ({ position: s.position, color: { ...s.color } })),
+        gradientStops: premultipliedStops(p.stops),
       });
     } else {
       const image: ImagePaint = {

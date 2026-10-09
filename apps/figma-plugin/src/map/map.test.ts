@@ -4,7 +4,7 @@ import { blendMode, effects, rotatedTransform, strokeProps } from "./box.ts";
 import { indexFonts, parseStyleName, planFonts, resolveFont } from "./fonts.ts";
 import { relative } from "./geometry.ts";
 import { childLayout, gridProps, sizingProp, stackProps } from "./layout.ts";
-import { linearTransform, paints, radialTransform } from "./paint.ts";
+import { linearTransform, paints, premultipliedStops, radialTransform } from "./paint.ts";
 import { reflowed, runProps } from "./text.ts";
 
 const available = indexFonts(
@@ -108,6 +108,23 @@ describe("paint", () => {
     expect(at(m, start[0]!, start[1]!)).toBeCloseTo(0, 5);
     expect(at(m, end[0]!, end[1]!)).toBeCloseTo(1, 5);
     expect(at(m, 0.5, 0.5)).toBeCloseTo(0.5, 5);
+  });
+
+  it("adds premultiplied sub-stops where alpha changes, as CSS blends", () => {
+    expect(premultipliedStops(bw)).toEqual(bw); // equal alpha: Figma already blends like CSS
+    const faint = [
+      { position: 0, color: { r: 0.13, g: 0.25, b: 0.55, a: 0.05 } },
+      { position: 0.7, color: { r: 1, g: 1, b: 1, a: 1 } },
+    ];
+    const out = premultipliedStops(faint);
+    expect(out).toHaveLength(9);
+    expect(out[0]).toEqual(faint[0]);
+    expect(out[8]).toEqual(faint[1]);
+    // 1/8 of the way, over white: CSS shows red 0.962; a straight blend of the two stops, 0.871
+    const overWhite = (c: { r: number; a: number } | undefined) => (c ? c.r * c.a + 1 - c.a : 0);
+    expect(out[1]?.position).toBeCloseTo(0.0875, 6);
+    expect(overWhite(out[1]?.color)).toBeCloseTo(0.962, 3);
+    expect(out[4]?.color).toMatchObject({ a: 0.525 });
   });
 
   it("maps a radial gradient's center to 0.5 and its radius to 0.5 in gradient space", () => {

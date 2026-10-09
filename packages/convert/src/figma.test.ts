@@ -1,6 +1,6 @@
 import type { BoxNode } from "@w2f/ir";
 import { describe, expect, it } from "vitest";
-import { convertNode, type FigmaRestNode } from "./figma.ts";
+import { collapseStops, convertNode, type FigmaRestNode } from "./figma.ts";
 
 const frame: FigmaRestNode = {
   id: "1:2",
@@ -37,6 +37,19 @@ const frame: FigmaRestNode = {
 };
 
 describe("figma normalize", () => {
+  it("drops the plugin's premultiplied sub-stops but keeps declared ones", () => {
+    const stop = (position: number, r: number, g: number, b: number, a: number) => ({
+      position,
+      color: { r, g, b, a },
+    });
+    // transparent blue → white: the midpoint is white at half alpha when premultiplied
+    expect(collapseStops([stop(0, 0, 0, 1, 0), stop(0.5, 1, 1, 1, 0.5), stop(1, 1, 1, 1, 1)])).toEqual([
+      stop(0, 0, 0, 1, 0),
+      stop(1, 1, 1, 1, 1),
+    ]);
+    expect(collapseStops([stop(0, 0, 0, 0, 1), stop(0.5, 1, 0, 0, 1), stop(1, 1, 1, 1, 1)])).toHaveLength(3);
+  });
+
   it("rebases the frame onto the capture origin and maps layout, fills and text", () => {
     const root = convertNode(frame, 0 - 500, 0 - 200);
     if (root.type !== "box") throw new Error("want box");

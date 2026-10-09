@@ -111,12 +111,12 @@ Per container, bottom-up:
    - `padding` → `padding`; the border is accounted for with `strokesIncludedInLayout`.
    - `column-gap/row-gap` → `gap/crossGap`.
    - `justify-content` start/center/end/space-between → `justify`. Anything else → skip to B.
-   - `align-items` → `align`. Stretch → child cross-axis `fill`, but only for a child the browser actually stretched (cross size = the content box, no wrap); a child with its own height (an `h-8` avatar) stays `fixed` at start. `flex-grow > 0` → child main-axis `fill`.
+   - `align-items` → `align`. Stretch → child cross-axis `fill`, but only for a child the browser actually stretched (cross size = the content box, no wrap); a child with its own height (an `h-8` avatar) stays `fixed` at start. `flex-grow > 0` → child main-axis `fill`. `baseline` → `align: baseline` in a single-line row (Figma `BASELINE`); the snapshot has no font metrics, so only the main axis is verified there and Figma places the cross axis from its own glyphs.
    - Other children are `fixed` at their measured size (the IR doesn't emit `hug` yet).
 3. **Simulate** Figma Auto Layout (padding, gap, alignment, greedy wrap) on the measured child sizes. FILL children are simulated the Figma way: they split the space left after fixed children **equally** (CSS grow ratios and `flex-basis` don't carry over), so `flex-grow: 1` next to `flex-grow: 2` fails verification, and so does fill inside a wrapping row. Every in-flow child within **1 px** of its measured rect (and fill children within 1 px of their simulated size) → accept.
 4. **Candidate B, from measurements.** Covers block flow, margins and space-evenly.
    - Children must be monotonic along one axis with a constant gap (±0.5 px), which gives `gap`.
-   - The first child's offset gives `padding`; consistent cross offsets give `align`: equal starts → start (padding = the offset), equal centers → center (no cross padding, so `mx-auto` blocks of different widths verify), equal ends → end (padding = the end offset).
+   - The first child's offset gives `padding`; cross offsets consistent within 1 px give `align` (a text box sits ~0.6 px off its button's center from glyph rounding): equal starts → start (padding = the offset), equal centers → center (no cross padding, so `mx-auto` blocks of different widths verify), equal ends → end (padding = the end offset).
    - Simulate again.
 5. **Grid.** Explicit or uniform px tracks with single-cell items → `grid` with fixed tracks (`gridCell` per child). Otherwise try B per row.
 6. **Fallback.** `layout: none`; children are absolutely positioned at measured coordinates; `LAYOUT_ABSOLUTE_FALLBACK` with `detail.reason`.
@@ -137,7 +137,7 @@ The functions in `apps/figma-plugin/src/map/*.ts` are pure (IR → plain propert
 | `sizing` | `layoutSizingHorizontal/Vertical` FIXED/HUG/FILL, set **after** `appendChild`. Text is never pinned to the browser's width: single-line text HUGs, multi-line keeps its width and HUGs in height (Figma's glyphs run slightly wider; FIXED clipped the last letter) |
 | absolute child of a stack | `layoutPositioning = "ABSOLUTE"`, x/y relative to the parent |
 | `solid` | `SOLID` with `opacity = a` |
-| `linear` / `radial` | `GRADIENT_LINEAR` / `GRADIENT_RADIAL` with `gradientTransform` (formula below) |
+| `linear` / `radial` | `GRADIENT_LINEAR` / `GRADIENT_RADIAL` with `gradientTransform` (formula below). CSS blends stops with premultiplied alpha and Figma doesn't (a 5% blue → white runs visibly blue), so a segment whose alpha changes gets 7 sub-stops computed the CSS way; `figma-drift` drops them again |
 | `rotation` | `relativeTransform [[cos, −sin, tx], [sin, cos, ty]]` about the box center |
 | `image` | `figma.createImage(bytes).hash`. scaleMode: cover→FILL, contain→FIT, tile→TILE. With a `crop`, or `stretch`: CROP with `imageTransform [[w, 0, x], [0, h, y]]` (the crop fractions; identity for stretch) |
 | `stroke` | `strokes`, `strokeAlign = INSIDE`, `strokeTop/Right/Bottom/LeftWeight`, `dashPattern` (dashed `[3w, 3w]`, dotted `[w, w]`) |
