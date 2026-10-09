@@ -17,6 +17,7 @@
     "compare": "tsx packages/capture/src/compare-cli.ts",
     "drift": "tsx packages/capture/src/drift-cli.ts",
     "figma-drift": "tsx packages/capture/src/figma-drift-cli.ts",
+    "drift:run": "tsx packages/capture/src/drift-run-cli.ts",
     "w2f:login": "tsx packages/capture/src/login-cli.ts",
     "browsers": "pnpm --filter @w2f/capture exec playwright install chromium",
     "plugin:build": "pnpm --filter @w2f/figma-plugin build"
