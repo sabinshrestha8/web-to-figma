@@ -185,6 +185,9 @@ describe("svg-icons fixture → IR", async () => {
     const bars = svgOf("icon-css-geometry").svg;
     expect(bars).toMatch(/<rect[^>]*x="10"[^>]*y="4"[^>]*width="6"[^>]*height="18"[^>]*rx="1"/);
     expect(bars).toMatch(/<circle[^>]*cx="20"[^>]*cy="5"[^>]*r="3"/);
+    expect(bars).toContain('transform="matrix(1, 0, 0, 1, 18, 16)"');
+    // fill-box origin (the rect's center) baked in, since SVG transforms run around 0 0
+    expect(bars).toContain('transform="translate(2 2) matrix(0.5, 0, 0, 0.5, 0, 0) translate(-2 -2)"');
   });
 
   it("strips scripts, handlers, foreignObject, styles, animations and external references", () => {

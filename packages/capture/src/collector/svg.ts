@@ -118,6 +118,30 @@ function inlineUses(clone: SVGSVGElement, viewport: { width: number; height: num
   }
 }
 
+/**
+ * The computed CSS transform as an SVG `transform` (MUI X Charts places every bar with one, and it
+ * goes with the `style` attribute). A `transform` attribute is part of the computed value too, so this
+ * replaces it losslessly. CSS transforms run around `transform-origin`, SVG ones around 0 0: the
+ * origin is baked in. ponytail: individual `rotate`/`scale` properties and % translates are ignored.
+ */
+function cssTransform(el: Element, cs: CSSStyleDeclaration): string | null {
+  const parts: string[] = [];
+  if (cs.translate && cs.translate !== "none") {
+    const [x = "0", y = "0"] = cs.translate.split(" ");
+    parts.push(`translate(${Number.parseFloat(x)} ${Number.parseFloat(y)})`);
+  }
+  if (cs.transform && cs.transform !== "none") {
+    let [ox = 0, oy = 0] = cs.transformOrigin.split(" ").map(Number.parseFloat);
+    if (cs.transformBox === "fill-box" && el instanceof SVGGraphicsElement) {
+      const box = el.getBBox();
+      ox += box.x;
+      oy += box.y;
+    }
+    parts.push(ox || oy ? `translate(${ox} ${oy}) ${cs.transform} translate(${-ox} ${-oy})` : cs.transform);
+  }
+  return parts.length ? parts.join(" ") : null;
+}
+
 function strip(clone: SVGSVGElement, normalizeColor: (value: string) => string) {
   for (const el of [clone, ...Array.from(clone.querySelectorAll("*"))]) {
     if (DROP.has(el.localName.toLowerCase())) {
@@ -176,6 +200,10 @@ export function serializeSvg(
       out.removeAttribute(p);
       const v = value(cs, p);
       if (v && (!parent || v !== value(parent, p))) out.setAttribute(p, v);
+    }
+    if (el !== svg) {
+      const transform = cssTransform(el, cs);
+      if (transform) out.setAttribute("transform", transform);
     }
     for (const p of GEOMETRY[el.localName] ?? []) {
       const v = cs.getPropertyValue(p).trim();
