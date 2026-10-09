@@ -222,6 +222,12 @@ function applyLayout(frame: FrameNode, n: BoxNode) {
     frame.counterAxisAlignItems = p.counterAxisAlignItems;
     frame.itemReverseZIndex = p.itemReverseZIndex;
     frame.strokesIncludedInLayout = p.strokesIncludedInLayout;
+    // The frame owns its measured size (the IR never asks a container to hug). Turning on Auto
+    // Layout may resize it to its (still empty) content, so pin both axes and restore the size;
+    // a FILL parent slot overrides this in placeInAutoLayout.
+    frame.primaryAxisSizingMode = "FIXED";
+    frame.counterAxisSizingMode = "FIXED";
+    frame.resizeWithoutConstraints(n.bounds.width, n.bounds.height);
   } else if (n.layout.mode === "grid") {
     const p = gridProps(n.layout);
     frame.layoutMode = "GRID";
