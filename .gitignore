@@ -5,3 +5,5 @@ coverage/
 *.tsbuildinfo
 .next/
 next-env.d.ts
+drift.md
+diff.png
