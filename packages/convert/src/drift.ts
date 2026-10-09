@@ -52,7 +52,28 @@ function label(n: Node, index: number): string {
   return `${n.name}#${index}`;
 }
 
-const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+/**
+ * Style equality that survives a round trip through Figma: numbers within 0.011 or 1% (float
+ * colors vs 4-dp IR colors, recomputed gradient angles), objects compared on shared keys (Figma
+ * can't report an image's crop or position), and an empty image `assetId` (Figma side: bytes
+ * unknown) matching any.
+ */
+function near(a: unknown, b: unknown): boolean {
+  if (typeof a === "number" && typeof b === "number") {
+    return Math.abs(a - b) <= Math.max(0.011, 0.01 * Math.max(Math.abs(a), Math.abs(b)));
+  }
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => near(v, b[i]));
+  }
+  if (a && b && typeof a === "object" && typeof b === "object") {
+    const x = a as Record<string, unknown>;
+    const y = b as Record<string, unknown>;
+    return Object.keys(x)
+      .filter((k) => k in y)
+      .every((k) => (k === "assetId" && (x[k] === "" || y[k] === "")) || near(x[k], y[k]));
+  }
+  return a === b;
+}
 
 function layoutDetail(a: Layout, b: Layout): string | null {
   if (a.mode !== b.mode) return `layout ${a.mode} → ${b.mode}`;
@@ -61,9 +82,10 @@ function layoutDetail(a: Layout, b: Layout): string | null {
     if (a.direction !== b.direction) diffs.push(`direction ${a.direction} → ${b.direction}`);
     if (a.justify !== b.justify) diffs.push(`justify ${a.justify} → ${b.justify}`);
     if (a.align !== b.align) diffs.push(`align ${a.align} → ${b.align}`);
-    if (a.gap !== b.gap) diffs.push(`gap ${a.gap} → ${b.gap}`);
-    if (a.crossGap !== b.crossGap) diffs.push(`crossGap ${a.crossGap} → ${b.crossGap}`);
-    if (!sameJson(a.padding, b.padding)) diffs.push(`padding changed`);
+    if (changed(a.gap, b.gap)) diffs.push(`gap ${a.gap} → ${b.gap}`);
+    if (changed(a.crossGap, b.crossGap)) diffs.push(`crossGap ${a.crossGap} → ${b.crossGap}`);
+    const sides = ["top", "right", "bottom", "left"] as const;
+    if (sides.some((s) => changed(a.padding[s], b.padding[s]))) diffs.push(`padding changed`);
     if (a.reverse !== b.reverse) diffs.push(`reverse changed`);
     if (a.wrap !== b.wrap) diffs.push(`wrap changed`);
   }
@@ -71,8 +93,8 @@ function layoutDetail(a: Layout, b: Layout): string | null {
     if (a.columns.length !== b.columns.length || a.rows.length !== b.rows.length) {
       diffs.push(`tracks ${a.columns.length}×${a.rows.length} → ${b.columns.length}×${b.rows.length}`);
     }
-    if (a.columnGap !== b.columnGap) diffs.push(`columnGap ${a.columnGap} → ${b.columnGap}`);
-    if (a.rowGap !== b.rowGap) diffs.push(`rowGap ${a.rowGap} → ${b.rowGap}`);
+    if (changed(a.columnGap, b.columnGap)) diffs.push(`columnGap ${a.columnGap} → ${b.columnGap}`);
+    if (changed(a.rowGap, b.rowGap)) diffs.push(`rowGap ${a.rowGap} → ${b.rowGap}`);
   }
   return diffs.length ? diffs.join("; ") : null;
 }
@@ -80,13 +102,14 @@ function layoutDetail(a: Layout, b: Layout): string | null {
 function restyleDetail(a: Node, b: Node): string | null {
   const diffs: string[] = [];
   if (a.type === "box" && b.type === "box") {
-    if (!sameJson(a.fills, b.fills)) diffs.push("fills");
-    if (!sameJson(a.stroke, b.stroke)) diffs.push("stroke");
-    if (!sameJson(a.radius, b.radius)) diffs.push("radius");
-    if (a.clip !== b.clip) diffs.push("clip");
+    if (!near(a.fills, b.fills)) diffs.push("fills");
+    if (!near(a.stroke, b.stroke)) diffs.push("stroke");
+    if (!near(a.radius, b.radius)) diffs.push("radius");
+    // Clipping a childless box changes nothing visible (Figma rectangles can't even clip).
+    if (a.clip !== b.clip && (a.children.length > 0 || b.children.length > 0)) diffs.push("clip");
   }
   if (a.type === "vector" && b.type === "vector" && a.svg !== b.svg) diffs.push("markup");
-  if (!sameJson(a.effects, b.effects)) diffs.push("effects");
+  if (!near(a.effects, b.effects)) diffs.push("effects");
   if (a.opacity !== b.opacity) diffs.push(`opacity ${a.opacity} → ${b.opacity}`);
   if (a.blendMode !== b.blendMode) diffs.push("blend");
   if (a.rotation !== b.rotation) diffs.push("rotation");

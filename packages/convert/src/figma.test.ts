@@ -76,4 +76,81 @@ describe("figma normalize", () => {
     expect(grid.position).toBe("absolute");
     expect(grid.sizing).toEqual({ horizontal: "fixed", vertical: "fixed" });
   });
+
+  it("maps radius, clip, stroke, effects and blend, and drops hidden paints", () => {
+    const card = convertNode({
+      id: "3:1",
+      name: "card",
+      type: "FRAME",
+      absoluteBoundingBox: { x: 0, y: 0, width: 200, height: 100 },
+      cornerRadius: 12,
+      clipsContent: true,
+      blendMode: "MULTIPLY",
+      fills: [
+        { type: "SOLID", color: { r: 1, g: 1, b: 1, a: 1 } },
+        { type: "SOLID", visible: false, color: { r: 1, g: 0, b: 0, a: 1 } },
+        { type: "IMAGE", scaleMode: "FIT" },
+      ],
+      strokes: [{ type: "SOLID", color: { r: 0, g: 0, b: 0, a: 1 }, opacity: 0.5 }],
+      strokeWeight: 2,
+      strokeDashes: [6, 6],
+      effects: [
+        {
+          type: "DROP_SHADOW",
+          color: { r: 0, g: 0, b: 0, a: 0.25 },
+          offset: { x: 0, y: 4 },
+          radius: 8,
+          spread: 0,
+        },
+        { type: "LAYER_BLUR", visible: false, radius: 4 },
+      ],
+      children: [],
+    });
+    if (card.type !== "box") throw new Error("want box");
+    expect(card.radius).toEqual([12, 12, 12, 12]);
+    expect(card.clip).toBe(true);
+    expect(card.blendMode).toBe("multiply");
+    expect(card.fills.map((f) => f.type)).toEqual(["solid", "image"]);
+    expect(card.fills[1]).toMatchObject({ scale: "contain", assetId: "" });
+    expect(card.stroke).toEqual({
+      color: { r: 0, g: 0, b: 0, a: 0.5 },
+      weights: { top: 2, right: 2, bottom: 2, left: 2 },
+      style: "dashed",
+    });
+    expect(card.effects).toEqual([
+      {
+        type: "shadow",
+        inset: false,
+        offset: { x: 0, y: 4 },
+        blur: 8,
+        spread: 0,
+        color: { r: 0, g: 0, b: 0, a: 0.25 },
+      },
+    ]);
+  });
+
+  it("recovers the CSS angle of a linear gradient from its handles", () => {
+    const n = convertNode({
+      id: "4:1",
+      name: "g",
+      type: "RECTANGLE",
+      absoluteBoundingBox: { x: 0, y: 0, width: 100, height: 100 },
+      fills: [
+        {
+          type: "GRADIENT_LINEAR",
+          gradientHandlePositions: [
+            { x: 0, y: 0.5 },
+            { x: 1, y: 0.5 },
+            { x: 0, y: 1 },
+          ],
+          gradientStops: [
+            { position: 0, color: { r: 0, g: 0, b: 0, a: 1 } },
+            { position: 1, color: { r: 1, g: 1, b: 1, a: 1 } },
+          ],
+        },
+      ],
+    });
+    if (n.type !== "box") throw new Error("want box");
+    expect(n.fills[0]).toMatchObject({ type: "linear", angle: 90 }); // to right
+  });
 });

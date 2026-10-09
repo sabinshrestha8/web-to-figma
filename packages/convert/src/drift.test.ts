@@ -108,4 +108,28 @@ describe("drift", () => {
     expect(kinds).toEqual(["added", "layout-changed", "removed", "restyled", "text-changed"]);
     expect(renderDrift(diffCaptures(oldR, newR))).toMatch(/Text changed \(1\)/);
   });
+
+  it("ignores float noise from a Figma round trip", () => {
+    const fill = (r: number) => [{ type: "solid" as const, color: { r, g: 0, b: 0, a: 1 } }];
+    const stack = (gap: number) => ({
+      mode: "stack" as const,
+      direction: "horizontal" as const,
+      reverse: false,
+      wrap: false,
+      gap,
+      crossGap: 0,
+      padding: { top: 0, right: 0, bottom: 0, left: 0 },
+      justify: "start" as const,
+      align: "start" as const,
+    });
+    const a = root([{ ...box("card", 0, 0, 200, 100), fills: fill(0.3843137323856354), layout: stack(7.5) }]);
+    const b = root([{ ...box("card", 0, 0, 200, 100), fills: fill(0.3843), layout: stack(7.51) }]);
+    expect(diffCaptures(a, b).entries).toEqual([]);
+    const c = root([{ ...box("card", 0, 0, 200, 100), fills: fill(0.5), layout: stack(15) }]);
+    expect(
+      diffCaptures(a, c)
+        .entries.map((e) => e.kind)
+        .sort(),
+    ).toEqual(["layout-changed", "restyled"]);
+  });
 });
