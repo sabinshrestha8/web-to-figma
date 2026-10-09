@@ -10,6 +10,7 @@ import { parseArgs } from "node:util";
 import { convertNode, diffCaptures, type FigmaRestNode, renderDrift } from "@w2f/convert";
 import { type Bundle, parseBundle } from "@w2f/ir";
 import { fetchFigmaNode } from "./figma-api.ts";
+import { inPath, outPath } from "./paths.ts";
 
 const { values } = parseArgs({
   options: {
@@ -32,7 +33,7 @@ if (!token) {
   console.error("FIGMA_TOKEN is not set (Figma → Account settings → Security → Personal access tokens)");
   process.exit(2);
 }
-const parsed = parseBundle(JSON.parse(readFileSync(values.bundle, "utf8")));
+const parsed = parseBundle(JSON.parse(readFileSync(inPath(values.bundle), "utf8")));
 if (!parsed.ok) throw new Error(`bundle: ${parsed.diagnostics.map((d) => d.message).join("; ")}`);
 const bundle: Bundle = parsed.value;
 const max = values.max === undefined ? undefined : Number(values.max);
@@ -52,6 +53,6 @@ const figmaRoot = convertNode(document, cap.root.bounds.x - frame.x, cap.root.bo
 if (figmaRoot.type !== "box") throw new Error("figma: the node is not a frame");
 const report = diffCaptures(figmaRoot, cap.root);
 const markdown = renderDrift(report);
-if (values.out) writeFileSync(values.out, `${markdown}\n`);
+if (values.out) writeFileSync(outPath(values.out), `${markdown}\n`);
 console.log(markdown);
 if (max !== undefined) process.exitCode = report.entries.length > max ? 1 : 0;

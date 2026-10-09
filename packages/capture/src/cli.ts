@@ -1,16 +1,16 @@
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import type { BoxNode, Node } from "@w2f/ir";
 import { closeBrowser } from "./browser.ts";
 import type { Viewport } from "./capture.ts";
+import { outPath } from "./paths.ts";
 import { convertUrls } from "./run.ts";
 import { loadStorageState } from "./storage-state.ts";
 
-const USAGE = `usage: pnpm w2f <url...> [-v 1440x900[@2]]... [-o .data/out.w2f.json] [--storage-state auth.json] [--block-private] [--wait-for selector] [--extra-settle-ms 0-5000]
+const USAGE = `usage: pnpm w2f <url...> [-v 1440x900[@2]]... [-o out.w2f.json] [--storage-state auth.json] [--block-private] [--wait-for selector] [--extra-settle-ms 0-5000]
 
   -v, --viewport       viewport WIDTHxHEIGHT[@DPR], repeatable (default 1440x900)
-  -o, --out            bundle path (default .data/capture.w2f.json; .data/ is gitignored)
+  -o, --out            bundle path (default capture.w2f.json); a bare name goes in the gitignored .data/
       --storage-state  start logged in, from a file saved by \`pnpm w2f:login <login url>\`
       --block-private  refuse loopback/private addresses (hosted-mode policy)
       --wait-for       capture only after this selector exists (slow dashboards; repeatable)
@@ -36,7 +36,7 @@ async function main() {
     allowPositionals: true,
     options: {
       viewport: { type: "string", short: "v", multiple: true },
-      out: { type: "string", short: "o", default: ".data/capture.w2f.json" },
+      out: { type: "string", short: "o", default: "capture.w2f.json" },
       "block-private": { type: "boolean", default: false },
       "storage-state": { type: "string" },
       "wait-for": { type: "string", multiple: true },
@@ -70,12 +70,12 @@ async function main() {
   if (!result.ok) return 1;
 
   const json = JSON.stringify(result.value);
-  mkdirSync(dirname(values.out), { recursive: true });
-  writeFileSync(values.out, json);
+  const out = outPath(values.out);
+  writeFileSync(out, json);
   const roots: BoxNode[] = result.value.ir.captures.map((c) => c.root);
   const nodes = roots.reduce((s, r) => s + count(r), 0);
   console.log(
-    `wrote ${values.out}: ${roots.length} capture(s), ${nodes} nodes, ${(json.length / 1024).toFixed(0)} KB in ${Date.now() - started} ms`,
+    `wrote ${out}: ${roots.length} capture(s), ${nodes} nodes, ${(json.length / 1024).toFixed(0)} KB in ${Date.now() - started} ms`,
   );
   return 0;
 }

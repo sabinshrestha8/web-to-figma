@@ -21,10 +21,10 @@ Requires Node ≥ 20.19 and pnpm 9.
 ### Capture a page
 
 ```sh
-pnpm w2f http://localhost:3000/ -v 1440x900 -v 390x844@2 -o .data/my-page.w2f.json
+pnpm w2f http://localhost:3000/ -v 1440x900 -v 390x844@2 -o my-page.w2f.json
 ```
 
-This writes one bundle with one capture per viewport. Diagnostics go to stderr. `--block-private` applies the hosted-mode network policy.
+This writes one bundle with one capture per viewport, to `.data/my-page.w2f.json`: bare file names (here and in `compare`, `drift`, `figma-drift`) live in the gitignored `.data/`, and are read from there when not in the current folder. A path with a folder (`./x.w2f.json`, `out/x.png`) is used as given. Diagnostics go to stderr. `--block-private` applies the hosted-mode network policy.
 
 ### Capture a page behind a login
 
@@ -33,7 +33,7 @@ The capture runs in its own fresh browser, so your normal browser login doesn't 
 ```sh
 pnpm w2f:login https://app.example.com/login
 # log in in the browser window that opens, then close the window: saves .data/auth.json
-pnpm w2f https://app.example.com/dashboard --storage-state .data/auth.json -o .data/dashboard.w2f.json
+pnpm w2f https://app.example.com/dashboard --storage-state .data/auth.json -o dashboard.w2f.json
 ```
 
 `auth.json` holds live session cookies and localStorage, so treat it like a password. Keep it in `.data/` (gitignored) and delete it when you're done. The tool only reads it; it's never copied into the bundle or logs.
@@ -51,7 +51,7 @@ The plugin builds one frame per capture inside a Section. Each frame contains a 
 Select a built frame and click **Export selected frame (PNG)** in the plugin, then:
 
 ```sh
-pnpm compare .data/my-page.w2f.json export.png -o .data/diff.png   # % of pixels differing from the reference screenshot
+pnpm compare my-page.w2f.json export.png -o diff.png   # % of pixels differing from the reference screenshot
 ```
 
 The diff PNG shows mismatching pixels in red. `--max 5` makes it exit non-zero above 5%.

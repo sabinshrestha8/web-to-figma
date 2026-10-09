@@ -8,6 +8,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { diffCaptures, renderDrift } from "@w2f/convert";
 import { type Bundle, parseBundle } from "@w2f/ir";
+import { inPath, outPath } from "./paths.ts";
 
 const { positionals, values } = parseArgs({
   allowPositionals: true,
@@ -23,7 +24,7 @@ if (!oldPath || !newPath) {
   process.exit(2);
 }
 function bundle(path: string): Bundle {
-  const parsed = parseBundle(JSON.parse(readFileSync(path, "utf8")));
+  const parsed = parseBundle(JSON.parse(readFileSync(inPath(path), "utf8")));
   if (!parsed.ok) throw new Error(`${path}: ${parsed.diagnostics.map((d) => d.message).join("; ")}`);
   return parsed.value;
 }
@@ -39,6 +40,6 @@ if (!a || !b) throw new Error(`capture index ${index} missing in one bundle`);
 if (a.url !== b.url) console.error(`note: different urls (${a.url} vs ${b.url})`);
 const report = diffCaptures(a.root, b.root);
 const markdown = renderDrift(report);
-if (values.out) writeFileSync(values.out, `${markdown}\n`);
+if (values.out) writeFileSync(outPath(values.out), `${markdown}\n`);
 console.log(markdown);
 if (max !== undefined) process.exitCode = report.entries.length > max ? 1 : 0;

@@ -4,11 +4,11 @@
  * reference screenshot. Given a bundle, its first capture's reference screenshot is used.
  * Exits 1 when the mismatch is above --max percent.
  */
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { readFileSync, writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { parseBundle } from "@w2f/ir";
 import { closeBrowser } from "./browser.ts";
+import { inPath, outPath } from "./paths.ts";
 import { comparePngs } from "./visual.ts";
 
 const { positionals, values } = parseArgs({
@@ -22,8 +22,8 @@ if (!a || !b) {
 }
 /** A PNG file, or the reference screenshot inside a .w2f.json bundle. */
 function png(path: string): Buffer {
-  if (!path.endsWith(".json")) return readFileSync(path);
-  const bundle = parseBundle(JSON.parse(readFileSync(path, "utf8")));
+  if (!path.endsWith(".json")) return readFileSync(inPath(path));
+  const bundle = parseBundle(JSON.parse(readFileSync(inPath(path), "utf8")));
   if (!bundle.ok) throw new Error(`${path}: ${bundle.diagnostics.map((d) => d.message).join("; ")}`);
   const shot = bundle.value.ir.captures[0]?.screenshot;
   const data = shot && bundle.value.assetData[shot];
@@ -34,10 +34,7 @@ function png(path: string): Buffer {
 try {
   const r = await comparePngs(png(a), png(b));
   const pct = r.mismatch * 100;
-  if (values.out) {
-    mkdirSync(dirname(values.out), { recursive: true });
-    writeFileSync(values.out, r.diff);
-  }
+  if (values.out) writeFileSync(outPath(values.out), r.diff);
   console.log(
     `${pct.toFixed(2)}% of ${r.width}×${r.height} pixels differ${r.sizeDiffers ? " (sizes differ; compared the overlap)" : ""}`,
   );
