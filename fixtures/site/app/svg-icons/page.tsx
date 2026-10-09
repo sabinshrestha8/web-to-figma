@@ -81,6 +81,12 @@ export default function SvgIcons() {
             SVG
           </text>
         </svg>
+        {/* Geometry set from CSS, the way MUI X Charts draws its bars: no x/y/width/height attributes. */}
+        <svg data-testid="icon-css-geometry" aria-hidden="true" viewBox="0 0 24 24" className="size-10">
+          <rect style={{ x: 2, y: 10, width: 6, height: 12 }} fill="#6366f1" />
+          <rect style={{ x: 10, y: 4, width: 6, height: 18, rx: 1 }} fill="#22c55e" />
+          <circle style={{ cx: 20, cy: 5, r: 3 }} fill="#f59e0b" />
+        </svg>
         {/* biome-ignore lint/security/noDangerouslySetInnerHtml: hostile markup the sanitizer must strip */}
         <span dangerouslySetInnerHTML={{ __html: HOSTILE }} />
       </section>

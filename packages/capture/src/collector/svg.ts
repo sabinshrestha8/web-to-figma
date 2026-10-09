@@ -67,6 +67,17 @@ const external = (v: string) => /url\(\s*["']?(?!#)/i.test(v);
 /** Computed lengths carry "px"; SVG attributes are user units. */
 const unitless = (v: string) => v.replace(/(\d)px\b/g, "$1");
 const PAINT_PROPS = [...INHERITED, ...Object.keys(OWN)];
+/**
+ * SVG 2 geometry properties. CSS can set them (MUI X Charts draws every bar as `<rect style="x:…;
+ * width:…">`), so they're lost with the `style` attribute unless copied back from computed style.
+ */
+const GEOMETRY: Record<string, string[]> = {
+  rect: ["x", "y", "width", "height", "rx", "ry"],
+  image: ["x", "y", "width", "height"],
+  circle: ["cx", "cy", "r"],
+  ellipse: ["cx", "cy", "rx", "ry"],
+  path: ["d"],
+};
 
 /** `viewport`: the root's user-space size, which a sprite's 100% would resolve against. */
 function inlineUses(clone: SVGSVGElement, viewport: { width: number; height: number }) {
@@ -165,6 +176,11 @@ export function serializeSvg(
       out.removeAttribute(p);
       const v = value(cs, p);
       if (v && (!parent || v !== value(parent, p))) out.setAttribute(p, v);
+    }
+    for (const p of GEOMETRY[el.localName] ?? []) {
+      const v = cs.getPropertyValue(p).trim();
+      if (!v || v === "auto" || v === "none") continue;
+      out.setAttribute(p, p === "d" ? v.replace(/^path\((["'])(.*)\1\)$/s, "$2") : unitless(v));
     }
     for (const [p, initial] of Object.entries(OWN)) {
       out.removeAttribute(p);

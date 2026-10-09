@@ -150,7 +150,16 @@ describe("svg-icons fixture → IR", async () => {
 
   it("draws every visible icon as a vector with a PNG fallback", () => {
     expect(vectors.map((v) => v.name.replace("svg ", "")).sort()).toEqual(
-      ["icon-home", "icon-bell", "icon-check", "icon-sprite", "icon-filled", "icon-gradient", "icon-text"]
+      [
+        "icon-home",
+        "icon-bell",
+        "icon-check",
+        "icon-sprite",
+        "icon-filled",
+        "icon-gradient",
+        "icon-text",
+        "icon-css-geometry",
+      ]
         .concat(["hostile", "icon-inline"])
         .sort(),
     );
@@ -172,6 +181,10 @@ describe("svg-icons fixture → IR", async () => {
     expect(filled).not.toContain("class=");
     expect(svgOf("icon-gradient").svg).toMatch(/<linearGradient[^>]*>.*stop-color="rgba?\(/);
     expect(svgOf("icon-gradient").svg).toContain('fill="url(#grad)"');
+    // CSS-set geometry (MUI X Charts bars) survives losing the style attribute.
+    const bars = svgOf("icon-css-geometry").svg;
+    expect(bars).toMatch(/<rect[^>]*x="10"[^>]*y="4"[^>]*width="6"[^>]*height="18"[^>]*rx="1"/);
+    expect(bars).toMatch(/<circle[^>]*cx="20"[^>]*cy="5"[^>]*r="3"/);
   });
 
   it("strips scripts, handlers, foreignObject, styles, animations and external references", () => {
