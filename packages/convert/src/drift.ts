@@ -34,9 +34,12 @@ function iou(a: Node["bounds"], b: Node["bounds"]): number {
   return union <= 0 ? 0 : inter / union;
 }
 
-/** Same element across captures? Tag + selector carry identity; overlap tolerates moves and resizes. */
+/** Same element across captures? Tag + selector carry identity; overlap tolerates moves and resizes.
+ * Across Figma and production, icons change type (vector vs box): those match on exact name + overlap. */
 function similarity(a: Node, b: Node): number {
-  if (a.type !== b.type) return 0;
+  if (a.type !== b.type) {
+    return a.name === b.name && iou(a.bounds, b.bounds) > 0.3 ? 4 : 0;
+  }
   let s = 0;
   if (a.source.tag === b.source.tag) s += 3;
   if (a.source.selector === b.source.selector) s += 2;

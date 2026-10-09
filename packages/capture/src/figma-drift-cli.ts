@@ -1,0 +1,52 @@
+/**
+ * pnpm figma-drift --file KEY --node FRAME_ID --bundle prod.w2f.json [--capture 0] [-o report.md] [--max N]
+ * Diff a Figma frame (via the read-only REST API) against a production capture: the same grouped
+ * Markdown report as `pnpm drift`, but "Figma says X, production says Y". Needs FIGMA_TOKEN
+ * (file_content:read) in the environment. The Figma frame is rebased onto the capture origin, so
+ * canvas position never counts as drift.
+ */
+import { readFileSync, writeFileSync } from "node:fs";
+import { parseArgs } from "node:util";
+import { convertNode, diffCaptures, type FigmaRestNode, renderDrift } from "@w2f/convert";
+import { type Bundle, parseBundle } from "@w2f/ir";
+import { fetchFigmaNode } from "./figma-api.ts";
+
+const { values } = parseArgs({
+  options: {
+    file: { type: "string" },
+    node: { type: "string" },
+    bundle: { type: "string" },
+    out: { type: "string", short: "o" },
+    capture: { type: "string", default: "0" },
+    max: { type: "string" },
+  },
+});
+if (!values.file || !values.node || !values.bundle) {
+  console.error(
+    "usage: pnpm figma-drift --file KEY --node FRAME_ID --bundle prod.w2f.json [-o report.md] [--capture 0] [--max N]",
+  );
+  process.exit(2);
+}
+const token = process.env["FIGMA_TOKEN"];
+if (!token) {
+  console.error("FIGMA_TOKEN is not set (Figma → Account settings → Security → Personal access tokens)");
+  process.exit(2);
+}
+const parsed = parseBundle(JSON.parse(readFileSync(values.bundle, "utf8")));
+if (!parsed.ok) throw new Error(`bundle: ${parsed.diagnostics.map((d) => d.message).join("; ")}`);
+const bundle: Bundle = parsed.value;
+const index = Number(values.capture);
+const cap = bundle.ir.captures[index];
+if (!cap) throw new Error(`capture index ${index} missing in the bundle`);
+
+const document = (await fetchFigmaNode(values.file, values.node, token)) as FigmaRestNode & {
+  absoluteBoundingBox?: { x: number; y: number; width: number; height: number };
+};
+const frame = document.absoluteBoundingBox ?? { x: 0, y: 0, width: 0, height: 0 };
+const figmaRoot = convertNode(document, cap.root.bounds.x - frame.x, cap.root.bounds.y - frame.y);
+if (figmaRoot.type !== "box") throw new Error("figma: the node is not a frame");
+const report = diffCaptures(figmaRoot, cap.root);
+const markdown = renderDrift(report);
+if (values.out) writeFileSync(values.out, `${markdown}\n`);
+console.log(markdown);
+if (values.max !== undefined) process.exitCode = report.entries.length > Number(values.max) ? 1 : 0;
