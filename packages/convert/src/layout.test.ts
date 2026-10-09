@@ -400,4 +400,95 @@ describe("layout engine", () => {
     const drifted = box("div", build(2).capture.root);
     expect(drifted.layout).toEqual({ mode: "none" });
   });
+
+  it("fills the cross axis only for items the browser stretched", () => {
+    const { nodes } = page((b) => {
+      const row = el(
+        b.id,
+        "div",
+        { x: 0, y: 0, width: 400, height: 60 },
+        { ...bg("rgb(1, 1, 1)"), display: "flex" },
+      );
+      return [
+        row,
+        el(row.id, "a", { x: 0, y: 0, width: 100, height: 60 }, bg("rgb(2, 2, 2)")),
+        // h-8 avatar under the default align-items: stretch stays 32 px tall.
+        el(row.id, "b", { x: 100, y: 0, width: 32, height: 32 }, bg("rgb(2, 2, 2)")),
+      ];
+    });
+    const row = box("div", convert(nodes).capture.root);
+    expect(row.layout).toMatchObject({ mode: "stack", align: "start" });
+    expect(row.children.map((c) => c.sizing.vertical)).toEqual(["fill", "fixed"]);
+  });
+
+  it("never claims FILL for unequal flex-grow (Figma splits fill space equally)", () => {
+    const { nodes } = page((b) => {
+      const row = el(
+        b.id,
+        "div",
+        { x: 0, y: 0, width: 300, height: 40 },
+        { ...bg("rgb(1, 1, 1)"), display: "flex" },
+      );
+      return [
+        row,
+        el(row.id, "a", { x: 0, y: 0, width: 100, height: 40 }, { ...bg("rgb(2, 2, 2)"), "flex-grow": "1" }),
+        el(
+          row.id,
+          "b",
+          { x: 100, y: 0, width: 200, height: 40 },
+          { ...bg("rgb(2, 2, 2)"), "flex-grow": "2" },
+        ),
+      ];
+    });
+    const row = box("div", convert(nodes).capture.root);
+    expect(row.children.map((c) => c.sizing.horizontal)).not.toContain("fill");
+  });
+
+  it("keeps an absolute backdrop behind the flow children", () => {
+    const { nodes } = page((b) => {
+      const card = el(
+        b.id,
+        "section",
+        { x: 0, y: 0, width: 300, height: 100 },
+        { ...bg("rgb(1, 1, 1)"), display: "flex", position: "relative" },
+      );
+      return [
+        card,
+        el(
+          card.id,
+          "glow",
+          { x: 0, y: 0, width: 300, height: 100 },
+          {
+            ...bg("rgb(9, 9, 9)"),
+            position: "absolute",
+            "z-index": "-1",
+          },
+        ),
+        el(card.id, "a", { x: 0, y: 0, width: 100, height: 100 }, bg("rgb(2, 2, 2)")),
+        el(card.id, "b", { x: 100, y: 0, width: 100, height: 100 }, bg("rgb(3, 3, 3)")),
+      ];
+    });
+    const card = box("section", convert(nodes).capture.root);
+    expect(card.layout).toMatchObject({ mode: "stack" });
+    expect(card.children.map((c) => c.name)).toEqual(["glow", "a", "b"]);
+  });
+
+  it("stacks centered blocks of different widths (mx-auto)", () => {
+    const { nodes } = page((b) => {
+      const col = el(b.id, "article", { x: 0, y: 0, width: 400, height: 100 }, bg("rgb(1, 1, 1)"));
+      return [
+        col,
+        el(col.id, "h1", { x: 100, y: 0, width: 200, height: 40 }, bg("rgb(2, 2, 2)")),
+        el(col.id, "p", { x: 50, y: 50, width: 300, height: 50 }, bg("rgb(3, 3, 3)")),
+      ];
+    });
+    const col = box("article", convert(nodes).capture.root);
+    expect(col.layout).toMatchObject({
+      mode: "stack",
+      direction: "vertical",
+      align: "center",
+      gap: 10,
+      padding: { top: 0, right: 0, bottom: 0, left: 0 },
+    });
+  });
 });
