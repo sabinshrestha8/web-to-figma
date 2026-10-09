@@ -390,6 +390,34 @@ describe("snapshotToIR box fidelity", () => {
     expect(row.children[0]?.sizing.horizontal).toBe("hug");
   });
 
+  it("drops a clip around text that fits, so Figma's wider glyphs aren't cut", () => {
+    const title = (width: number) => {
+      const snap = page((body) => {
+        const h2 = el(
+          body.id,
+          "h2",
+          { x: 0, y: 1.5, width: 134, height: 22.5 },
+          {
+            "text-overflow": "ellipsis",
+            "white-space": "nowrap",
+            "overflow-x": "hidden",
+            "overflow-y": "hidden",
+            "line-height": "24px",
+          },
+        );
+        return [h2, txt(h2.id, "Latest Onboarding", [{ x: 0, y: 4, width, height: 18 }])];
+      });
+      return all(convert(snap).capture.root).filter((n) => n.name !== "body");
+    };
+    // fits: the clip goes, and the bare wrapper flattens into hugging text
+    expect(title(133.86).map((n) => [n.type, n.sizing.horizontal])).toEqual([["text", "hug"]]);
+    // overflows: CSS really cuts it, so the clip and the ellipsis stay
+    const cut = title(160);
+    expect(cut.map((n) => n.type)).toEqual(["box", "text"]);
+    expect(cut[0]).toMatchObject({ clip: true });
+    expect(cut[1]).toMatchObject({ truncate: true });
+  });
+
   it("maps border, radius, shadow, blend, clip and gradient layers onto the box", () => {
     const snap = page((body) => [
       el(

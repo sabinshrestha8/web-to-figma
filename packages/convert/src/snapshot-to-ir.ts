@@ -75,6 +75,20 @@ export function paintOrder<T extends RawElement | { kind: "text" | "inline" }>(
 
 const near = (a: number, b: number) => Math.abs(a - b) < 0.5;
 
+/** Single-line, untruncated text inside `b` (its line box may overhang by half-leading). */
+function fitsText(n: Node, b: BoxNode["bounds"]): boolean {
+  const t = n.bounds;
+  return (
+    n.type === "text" &&
+    n.lineCount === 1 &&
+    !n.truncate &&
+    t.x >= b.x - 0.5 &&
+    t.x + t.width <= b.x + b.width + 0.5 &&
+    t.y >= b.y - 2 &&
+    t.y + t.height <= b.y + b.height + 2
+  );
+}
+
 /**
  * A wrapper that paints nothing around a single same-sized child is noise: keep only the child.
  * So is one around a single line of text whose line box stands up to 2 px proud of it (an inherited
@@ -238,6 +252,10 @@ export function snapshotToIR(raw: RawSnapshot, opts: ConvertOptions): ConvertRes
       layout,
       children: kids,
     };
+    // A clip around single-line text that fits cuts nothing in the browser, but Figma's glyphs run a
+    // pixel or two wider and lose their last letter to it ("Latest Onboardin" in an h2.truncate).
+    // Dropping it also lets flatten turn such a wrapper into the text itself.
+    if (box.clip && kids.length > 0 && kids.every((k) => fitsText(k, box.bounds))) box.clip = false;
     return flatten(box);
   };
 
