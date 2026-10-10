@@ -46,7 +46,9 @@ pnpm w2f https://app.example.com/dashboard --storage-state .data/auth.json -o da
 pnpm web   # http://127.0.0.1:4317
 ```
 
-Enter URLs and viewports, watch progress, compare each capture's screenshot with its IR preview, filter the diagnostics table, and download the bundle. Public URLs only; pages behind a login stay on the CLI above.
+Enter URLs and viewports, watch progress, compare each capture's screenshot with its IR preview, filter the diagnostics table, and download the bundle.
+
+To capture a logged-in page from the UI instead, open the **Saved session** card and enter the login URL: a browser window opens on your machine — log in there, then close it. Tick **Capture with the saved session** on later captures. It reads and writes the same `.data/auth.json` as `pnpm w2f:login`, so the two are interchangeable; treat the file like a password.
 
 ### Import into Figma (desktop app)
 

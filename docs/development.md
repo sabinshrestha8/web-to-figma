@@ -248,3 +248,12 @@ Un-deferred: V1 users asked whether every flow needs the terminal, so the browse
 - **Found in review:** job dirs are created before the record is registered, so an unwritable disk can't leave a phantom job occupying a 429 slot; the startup sweep was proven by aging a dir 25h and restarting the server (it vanished).
 - No IR version change (still 1.5; only the diagnostic enum grew).
 
+### Phase 7b follow-up: web login (2026-10-10)
+
+Designers can't use the terminal, and logged-in pages were CLI-only even with the web UI. The UI now has a login flow for them.
+
+- **Login endpoints** (`lib/session.ts`, `lib/api.ts`): `POST /api/login` opens the URL in a visible browser on the local machine (the existing `saveLogin`, headed by default); closing the window saves `.data/auth.json` — the same file `pnpm w2f:login` writes, so CLI and web sessions are interchangeable. One open login at a time (else 429); `GET /api/login/:id` polls it; `GET /api/session` reports metadata only (cookie count, domains, origins — values never leave the server); `DELETE /api/session` forgets it.
+- **Capture wiring:** `session: true` on a conversion loads the file (`loadStorageState`, value-free errors) into the capture context. The UI has a **Saved session** card (log in, status, forget) and a per-capture checkbox, disabled without a session.
+- **Tests:** store states and file handling with fake saves; redaction proven with a known token (metadata contains domains, never the token); handler codes (202/429/400/404, missing-file 400); an integration test that seeds a session through the real `saveLogin` and captures the `/auth` fixture as Ada with the token absent from the bundle.
+- **Caught by the tests:** the new integration test first failed with `PAGE_REDIRECTED` to `/landing` — the seeded cookie carried the wrong value. The fixture guard only accepts `fixture-session-token`; the test now uses it. The wiring was always right.
+

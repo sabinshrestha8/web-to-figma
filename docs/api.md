@@ -10,7 +10,8 @@ All routes:
 POST /api/conversions
   body { targets: [{ url }] (1–10),
          viewports: [{ width 240–3840, height 240–4000, dpr 1|2 } | "1440x900" | "390x844@2"] (1–3),
-         options?: { waitFor?: string | string[], extraSettleMs?: 0–5000 } }
+         options?: { waitFor?: string | string[], extraSettleMs?: 0–5000 },
+         session?: true }
   202 { id }
   400 { diagnostics: Diagnostic[] }      invalid input or URL_BLOCKED
   403                                    guard rejected Host/Origin
@@ -25,6 +26,14 @@ GET /api/conversions/:id
 GET /api/conversions/:id/bundle               200 application/json (Content-Disposition: attachment; *.w2f.json)
 GET /api/conversions/:id/captures/:cid/ir     200 { capture, assetUrls } (for the preview)
 GET /api/conversions/:id/assets/:assetId      200 image bytes (screenshot, preview images)
+
+POST /api/login
+  body { url }                           opens the page in a visible browser on this machine
+  202 { id }                             log in there, then close the window to save the session
+  400, 403, 429 (one open login at a time)
+GET /api/login/:id                       200 { id, url, status: "open"|"done"|"failed" }
+GET /api/session                         200 { present, cookies, domains, origins } (metadata only, never values)
+DELETE /api/session                      200 { deleted }
 ```
 
 Bundle, IR and asset reads 404 when the id is unknown or the job isn't done.
@@ -33,3 +42,5 @@ Bundle, IR and asset reads 404 when the id is unknown or the job isn't done.
 - **State.** Jobs live in an in-memory `Map`, artifacts in `.data/jobs/<id>/bundle.json` (24 h TTL, swept at startup). A restart forgets running jobs; hot reloads in `next dev` do too.
 - **Errors.** Conversion problems are `Diagnostic[]`; transport rejections (403/404/429) are `{ error }`.
 - **Deviations from the 7b draft:** no `cookieHeader` (login stays in the CLI); no per-capture DOM node count (it would need a pipeline change for a table number); `stage` is coarse (`capturing` covers settling through converting, which the runner can't observe).
+
+- **Sessions.** `session: true` captures with the saved `.data/auth.json` (the same file `pnpm w2f:login` writes, so CLI and web sessions are interchangeable). The session never appears in API responses (metadata only) or the bundle. An expired session shows up as `PAGE_REDIRECTED` in the job diagnostics, like on the CLI.
