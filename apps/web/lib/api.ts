@@ -60,6 +60,23 @@ function normalize(input: ConversionInput): NormalizedInput | { error: string } 
 const bad = (message: string) =>
   Response.json({ diagnostics: [diag("INVALID_INPUT", message)] }, { status: 400 });
 
+const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+/**
+ * Browsers accept bare hostnames, so the API does too: public names gain `https://`,
+ * loopback gains `http://`. Anything with a scheme (including a wrong one, which the
+ * policy reports) passes through untouched.
+ */
+export function withScheme(raw: string): string {
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(raw)) return raw;
+  try {
+    if (LOOPBACK.has(new URL(`http://${raw}`).hostname)) return `http://${raw}`;
+  } catch {
+    // Still scheme-less garbage: leave it for validation to report.
+  }
+  return `https://${raw}`;
+}
+
 /** POST /api/conversions → 202 {id} (queued), 400, 403 or 429. */
 export async function postConversions(req: Request, store: Store, logins: LoginStore): Promise<Response> {
   const blocked = guard(req);
@@ -75,8 +92,9 @@ export async function postConversions(req: Request, store: Store, logins: LoginS
     return bad(parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
   const input = normalize(parsed.data);
   if ("error" in input) return bad(input.error);
+  const urls = input.urls.map(withScheme);
   const policy = createPolicy({ allowPrivateNetworks: true });
-  for (const url of input.urls) {
+  for (const url of urls) {
     const violation = await policy.check(url, false);
     if (violation) return Response.json({ diagnostics: [violation] }, { status: 400 });
   }
@@ -88,7 +106,7 @@ export async function postConversions(req: Request, store: Store, logins: LoginS
       return bad(e instanceof Error ? e.message : "no saved session");
     }
   }
-  const job = store.create({ ...input, ...(storageState === undefined ? {} : { storageState }) });
+  const job = store.create({ ...input, urls, ...(storageState === undefined ? {} : { storageState }) });
   if (!job) return Response.json({ error: "2 jobs already running" }, { status: 429 });
   return Response.json({ id: job.id }, { status: 202 });
 }
@@ -172,9 +190,10 @@ export async function postLogin(req: Request, logins: LoginStore): Promise<Respo
   const parsed = loginBody.safeParse(body);
   if (!parsed.success)
     return bad(parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
-  const violation = await createPolicy({ allowPrivateNetworks: true }).check(parsed.data.url, false);
+  const url = withScheme(parsed.data.url);
+  const violation = await createPolicy({ allowPrivateNetworks: true }).check(url, false);
   if (violation) return Response.json({ diagnostics: [violation] }, { status: 400 });
-  const rec = logins.start(parsed.data.url);
+  const rec = logins.start(url);
   if (!rec) return Response.json({ error: "a login is already open" }, { status: 429 });
   return Response.json({ id: rec.id }, { status: 202 });
 }

@@ -9,6 +9,7 @@ import {
   getSession,
   postConversions,
   postLogin,
+  withScheme,
 } from "./api.ts";
 import { createStore } from "./jobs.ts";
 import { createLoginStore } from "./session.ts";
@@ -30,6 +31,18 @@ const valid = {
 };
 
 describe("POST /api/conversions", () => {
+  it.each([
+    ["employer.veloxlabs.net/login", "https://employer.veloxlabs.net/login"],
+    ["127.0.0.1:4400/landing", "http://127.0.0.1:4400/landing"],
+    ["localhost:3000/", "http://localhost:3000/"],
+    ["https://a.b/c", "https://a.b/c"],
+    ["http://a.b/c", "http://a.b/c"],
+    ["ftp://a.b/c", "ftp://a.b/c"],
+    ["not a url", "https://not a url"],
+  ])("withScheme(%s) → %s", (raw, want) => {
+    expect(withScheme(raw)).toBe(want);
+  });
+
   it("queues a job with 202 {id}", async () => {
     const r = await postConversions(post("/api/conversions", valid), createStore(never), logins());
     expect(r.status).toBe(202);
@@ -76,6 +89,22 @@ describe("POST /api/conversions", () => {
     );
     expect(r.status).toBe(400);
     expect(await r.json()).toMatchObject({ diagnostics: [{ code: "URL_BLOCKED" }] });
+  });
+
+  it("accepts a bare loopback hostname end to end", async () => {
+    const seen: string[] = [];
+    const store = createStore(async (job) => {
+      seen.push(...job.urls);
+      return { ok: false, diagnostics: [] };
+    });
+    const r = await postConversions(
+      post("/api/conversions", { targets: [{ url: "127.0.0.1:4400/landing" }], viewports: ["1440x900"] }),
+      store,
+      logins(),
+    );
+    expect(r.status).toBe(202);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(seen).toEqual(["http://127.0.0.1:4400/landing"]);
   });
 
   it("rejects the third concurrent job with 429", async () => {

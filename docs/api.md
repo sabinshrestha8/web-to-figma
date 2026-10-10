@@ -41,6 +41,7 @@ Bundle, IR and asset reads 404 when the id is unknown or the job isn't done.
 - **Progress.** The client polls `GET /api/conversions/:id` every 500 ms. No SSE or websockets.
 - **State.** Jobs live in an in-memory `Map`, artifacts in `.data/jobs/<id>/bundle.json` (24 h TTL, swept at startup). A restart forgets running jobs; hot reloads in `next dev` do too.
 - **Errors.** Conversion problems are `Diagnostic[]`; transport rejections (403/404/429) are `{ error }`.
+- **Bare hostnames** gain `https://` (`http://` for loopback), like a browser address bar — designers don't learn URL schemes.
 - **Deviations from the 7b draft:** no `cookieHeader` (login stays in the CLI); no per-capture DOM node count (it would need a pipeline change for a table number); `stage` is coarse (`capturing` covers settling through converting, which the runner can't observe).
 
 - **Sessions.** `session: true` captures with the saved `.data/auth.json` (the same file `pnpm w2f:login` writes, so CLI and web sessions are interchangeable). The session never appears in API responses (metadata only) or the bundle. An expired session shows up as `PAGE_REDIRECTED` in the job diagnostics, like on the CLI.
