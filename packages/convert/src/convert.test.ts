@@ -733,6 +733,51 @@ describe("inline formatting contexts", () => {
     expect(diagnostics).toEqual([]);
   });
 
+  it("marks ignored elements: boxes, flattened wrappers and paragraphs holding an ignored inline", () => {
+    const ignored = (e: RawElement): RawElement => ({ ...e, ignore: true });
+    const snap = page((body) => {
+      const card = ignored(
+        el(body.id, "div", { x: 0, y: 0, width: 300, height: 100 }, { "background-color": "rgb(255, 0, 0)" }),
+      );
+      const wrap = ignored(el(body.id, "div", { x: 0, y: 200, width: 300, height: 100 }));
+      const chart = el(
+        wrap.id,
+        "div",
+        { x: 0, y: 200, width: 300, height: 100 },
+        { "background-color": "rgb(0, 0, 255)" },
+      );
+      const p = el(body.id, "p", { x: 0, y: 400, width: 300, height: 24 });
+      const span = el(p.id, "span", { x: 70, y: 400, width: 60, height: 24 }, { display: "inline" });
+      const time = ignored(
+        el(span.id, "time", { x: 70, y: 400, width: 60, height: 24 }, { display: "inline" }),
+      );
+      return [
+        card,
+        txt(card.id, "Live", [line(0, 40)]),
+        wrap,
+        chart,
+        p,
+        txt(p.id, "Updated ", [{ x: 0, y: 400, width: 70, height: 24 }]),
+        span,
+        time,
+        txt(time.id, "07:18", [{ x: 70, y: 400, width: 60, height: 24 }]),
+        el(
+          body.id,
+          "div",
+          { x: 0, y: 600, width: 300, height: 50 },
+          { "background-color": "rgb(0, 255, 0)" },
+        ),
+      ];
+    });
+    const nodes = all(convert(snap).capture.root);
+    const fill = (r: number, g: number, b: number) =>
+      nodes.find((n) => n.type === "box" && JSON.stringify(n.fills).includes(`"r":${r},"g":${g},"b":${b}`));
+    expect(fill(1, 0, 0)?.ignore).toBe(true); // the card
+    expect(fill(0, 0, 1)?.ignore).toBe(true); // the chart, flattened out of its ignored wrapper
+    expect(fill(0, 1, 0)?.ignore).toBeUndefined();
+    expect(nodes.find((n) => n.type === "text" && n.characters.startsWith("Updated"))?.ignore).toBe(true);
+  });
+
   it("truncates an overflowing ellipsis line at the content box, keeping the characters", () => {
     const text = (width: number) => {
       const snap = page((body) => {

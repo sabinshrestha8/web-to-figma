@@ -123,6 +123,7 @@ export function flatten(box: BoxNode): Node {
     ...only,
     sizing: { horizontal: keep(only.sizing.horizontal), vertical: keep(only.sizing.vertical) },
     position: box.position === "flow" ? only.position : box.position,
+    ...(box.ignore ? { ignore: true } : {}),
   };
 }
 
@@ -248,6 +249,7 @@ export function snapshotToIR(raw: RawSnapshot, opts: ConvertOptions): ConvertRes
       position: n.style.position === "absolute" || n.style.position === "fixed" ? n.style.position : "flow",
       sizing: { horizontal: "fixed", vertical: "fixed" },
       source: { tag: n.tag, selector: selectorOf(n) },
+      ...(n.ignore ? { ignore: true } : {}),
       ...style,
       layout,
       children: kids,
@@ -279,6 +281,7 @@ export function snapshotToIR(raw: RawSnapshot, opts: ConvertOptions): ConvertRes
       position: n.style.position === "absolute" || n.style.position === "fixed" ? n.style.position : "flow",
       sizing: { horizontal: "fixed", vertical: "fixed" },
       source: { tag: n.tag, selector: selectorOf(n) },
+      ...(n.ignore ? { ignore: true } : {}),
       svg,
       ...(fallback ? { fallback } : {}),
     };

@@ -246,6 +246,10 @@ export function inlineText(group: InlineGroup, root: RawElement, ctx: TextContex
   if (!characters.trim() || runs.every((r) => r.style.color.a === 0)) return null;
 
   const id = `${ctx.captureId}:${head.id}`;
+  // An ignored inline element (a <time> in a sentence) has no node of its own: its paragraph is ignored.
+  const ignoredIn = (n: RawElement | RawText): boolean =>
+    n.kind === "element" && (n.ignore === true || ctx.kidsOf(n).some(ignoredIn));
+  const ignore = group.nodes.some(ignoredIn);
   const s = root.style;
   const lineHeight = px(s["line-height"]);
   const multiLine = lines.length > 1;
@@ -304,5 +308,6 @@ export function inlineText(group: InlineGroup, root: RawElement, ctx: TextContex
     autoResize: multiLine || truncate ? "height" : "width-and-height",
     lineCount: lines.length,
     ...(truncate ? { truncate } : {}),
+    ...(ignore ? { ignore } : {}),
   };
 }
