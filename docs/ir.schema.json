@@ -133,6 +133,7 @@
               "TIMEOUT",
               "PAGE_TOO_LARGE",
               "BUNDLE_INVALID",
+              "INVALID_INPUT",
               "SCHEMA_VERSION_UNSUPPORTED",
               "FIGMA_BUILD_FAILED",
               "IMAGE_FAILED",

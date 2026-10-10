@@ -30,6 +30,7 @@ Source: [`packages/ir/src/diagnostics.ts`](../packages/ir/src/diagnostics.ts). `
 | `TIMEOUT` | fatal | Navigation, evaluation or job wall clock exceeded | — |
 | `PAGE_TOO_LARGE` | fatal | Element count above the cap | — |
 | `BUNDLE_INVALID` | fatal | IR or bundle failed validation (the message carries the path) | — |
+| `INVALID_INPUT` | fatal | The web API rejected the request body (shape or viewport ranges; the message carries the path) | — |
 | `SCHEMA_VERSION_UNSUPPORTED` | fatal | IR major version newer than this build, or no migration exists | — |
 | `FIGMA_BUILD_FAILED` | fatal | The plugin threw while creating nodes (error text in `message`); the partially built Section is removed | — |
 | `IMAGE_FAILED` | error | An `<img>` failed in the page (404, undecodable) → grey placeholder; a background image the capture didn't get → layer skipped; a raster island with no pixels | placeholder / skipped |

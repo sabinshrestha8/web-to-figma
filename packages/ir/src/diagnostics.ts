@@ -13,6 +13,7 @@ export const DIAGNOSTIC_CODES = {
   TIMEOUT: "fatal",
   PAGE_TOO_LARGE: "fatal",
   BUNDLE_INVALID: "fatal",
+  INVALID_INPUT: "fatal",
   SCHEMA_VERSION_UNSUPPORTED: "fatal",
   FIGMA_BUILD_FAILED: "fatal",
   IMAGE_FAILED: "error",
