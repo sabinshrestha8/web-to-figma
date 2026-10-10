@@ -5,7 +5,7 @@
 ```sh
 pnpm install
 pnpm check        # typecheck + lint + test (what CI runs)
-pnpm test -u      # regenerate docs/ir.schema.json after a schema change
+pnpm test -- -u      # regenerate docs/ir.schema.json after a schema change
 pnpm format       # Biome format + safe fixes
 ```
 
@@ -209,4 +209,16 @@ Two runs of `drift:run` on the real dashboard gave 5 changes and 0.02% pixels:
   - unit tests for boxes, flattened wrappers, a nested inline in a paragraph, drift bounds-only and `ignoredRects`, all mutation-checked;
   - an integration test on the new `/live` fixture: noisy without `ignore`; 0 changes, 0% pixels and 4 masked regions with it (mutation-checked: without the mask it's 0.89%); both unused-selector warnings.
 - **Limit:** an ignored element with `display: contents` has no box, so nothing is flagged; use a selector for its children.
+
+### Phase 8: Hardening (2026-10-10)
+
+- **Hostile fixtures** (`fixtures/site/app/hostile/*`, all zero-React `route.ts` handlers) + `packages/capture/src/hardening.int.test.ts`:
+  - `hang` (a page whose script never yields) fails with `TIMEOUT` instead of hanging;
+  - `many-elements` (20k elements over the 15k collector limit) fails with `PAGE_TOO_LARGE`;
+  - `huge-image` (a valid 12 MB BMP over the 10 MB asset limit) still captures, with `ASSET_REJECTED` and a grey placeholder. The BMP path matters: `imagePlan` only requests bytes for `loaded` images, so an invalid 12 MB body would report `IMAGE_FAILED`, never `ASSET_REJECTED`.
+- **Full fixture suite:** new `mobile` (390×844, cards assert a vertical stack) and `nested-complex` (deep nesting, margin siblings, absolute overlays kept in paint order) pages, both in the visual diff. Measured: mobile 0.12%, nested-complex 3.92%.
+- **`NEGATIVE_ZINDEX`** (info): the nested-complex `-z-10` backdrop exposed that nothing reported below-fill painting. Figma has no below-fill, so the child stays in paint order, above the parent fill; the diagnostic says so once per page. Unit-tested in `convert.test.ts`, asserted end to end on the fixture. No IR version change (still 1.5; only the diagnostic enum grew).
+- **Perf budgets asserted** (`hardening.int.test.ts`): landing at 1440px captures in ~3s (budget 8s), image-heavy bundle 0.53 MB (budget 15 MB).
+- **Compare script:** `--capture N` picks the viewport (same convention as `drift`), `--max` rejects non-numbers and negatives instead of silently exiting 0. Verified by hand against a two-viewport bundle (exit codes 0/1, both error paths).
+- **Left for later:** cross-origin POST → 403 needs `apps/web` (Phase 7b); the preview still paints negative-z children above the parent fill (the 3.92% remainder, documented in testing.md).
 
