@@ -6,14 +6,15 @@ import { outPath } from "./paths.ts";
 import { convertUrls, parseViewport } from "./run.ts";
 import { loadStorageState } from "./storage-state.ts";
 
-const USAGE = `usage: pnpm w2f <url...> [-v 1440x900[@2]]... [-o out.w2f.json] [--storage-state auth.json] [--block-private] [--wait-for selector] [--extra-settle-ms 0-5000]
+const USAGE = `usage: pnpm w2f <url...> [-v 1440x900[@2]]... [-o out.w2f.json] [--storage-state auth.json] [--block-private] [--wait-for selector] [--extra-settle-ms 0-5000] [--ignore selector]
 
   -v, --viewport       viewport WIDTHxHEIGHT[@DPR], repeatable (default 1440x900)
   -o, --out            bundle path (default capture.w2f.json); a bare name goes in the gitignored .data/
       --storage-state  start logged in, from a file saved by \`pnpm w2f:login <login url>\`
       --block-private  refuse loopback/private addresses (hosted-mode policy)
       --wait-for       capture only after this selector exists (slow dashboards; repeatable)
-      --extra-settle-ms  extra quiet wait after settling, 0-5000`;
+      --extra-settle-ms  extra quiet wait after settling, 0-5000
+      --ignore         CSS selector of live content (clock, chart): drift compares only its bounds; repeatable`;
 
 function parseExtraSettleMs(s: string): number {
   const n = Number(s);
@@ -34,6 +35,7 @@ async function main() {
       "storage-state": { type: "string" },
       "wait-for": { type: "string", multiple: true },
       "extra-settle-ms": { type: "string" },
+      ignore: { type: "string", multiple: true },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -53,6 +55,7 @@ async function main() {
     allowPrivateNetworks: !values["block-private"],
     ...(values["storage-state"] ? { storageState: loadStorageState(values["storage-state"]) } : {}),
     ...(waitForSelectors.length ? { waitForSelectors } : {}),
+    ...(values.ignore?.length ? { ignoreSelectors: values.ignore } : {}),
     ...(values["extra-settle-ms"] !== undefined
       ? { extraSettleMs: parseExtraSettleMs(values["extra-settle-ms"]) }
       : {}),

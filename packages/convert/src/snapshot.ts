@@ -138,6 +138,8 @@ export interface RawElement {
   image?: { src: string; width: number; height: number; state: "loaded" | "failed" | "pending" };
   /** Inline `<svg>`: sanitized markup with computed paint inlined. Absent when over `MAX_SVG_CHARS`. */
   svg?: string;
+  /** Matched one of the capture's `ignore` selectors. */
+  ignore?: true;
 }
 
 export interface RawText {
@@ -167,4 +169,6 @@ export interface RawSnapshot {
   nodes: RawNode[];
   /** True when the collector stopped at its node cap. */
   truncated: boolean;
+  /** `ignore` selectors that are invalid or matched nothing. */
+  ignoreUnused?: { selector: string; reason: "invalid" | "no match" }[];
 }

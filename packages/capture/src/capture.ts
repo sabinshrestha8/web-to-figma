@@ -28,6 +28,8 @@ export interface CaptureOptions {
   waitForSelectors?: string[];
   /** Extra quiet wait after settling, 0–5000 ms (docs/api.md). */
   extraSettleMs?: number;
+  /** CSS selectors of live content (clocks, charts): their nodes get `ignore`, see DriftConfig. */
+  ignoreSelectors?: string[];
 }
 
 export interface CaptureOutput {
@@ -376,6 +378,7 @@ export async function capture(
       collector.evaluateHandle((m, opts) => m.collect(opts), {
         maxNodes: LIMITS.maxElements,
         dpr: viewport.dpr,
+        ignore: options.ignoreSelectors ?? [],
       }),
       LIMITS.evaluateMs,
       "DOM extraction",
@@ -388,6 +391,15 @@ export async function capture(
         diag("PAGE_TOO_LARGE", `page has more than ${LIMITS.maxElements} elements`, {
           detail: { limit: LIMITS.maxElements },
         }),
+      );
+    }
+    for (const u of snapshot.ignoreUnused ?? []) {
+      diagnostics.push(
+        diag(
+          "IGNORE_SELECTOR_UNUSED",
+          `ignore selector ${JSON.stringify(u.selector)} ${u.reason === "invalid" ? "is not valid CSS" : "matched nothing"}`,
+          { detail: { selector: u.selector } },
+        ),
       );
     }
     if (snapshot.url !== new URL(url).href) {

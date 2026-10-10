@@ -57,7 +57,7 @@ const isInline = (n: ChildNode | null): boolean =>
     (n.nodeType === Node.ELEMENT_NODE && getComputedStyle(n as Element).display.startsWith("inline")));
 
 /** The snapshot, plus each recorded element by snapshot id (kept in the page for `isolate`). */
-export function collect(opts: { maxNodes: number; dpr: number }): {
+export function collect(opts: { maxNodes: number; dpr: number; ignore?: string[] }): {
   snapshot: RawSnapshot;
   elements: Element[];
 } {
@@ -75,6 +75,20 @@ export function collect(opts: { maxNodes: number; dpr: number }): {
   });
   let nextId = 0;
   let truncated = false;
+  const ignored = new Set<Element>();
+  const ignoreUnused: NonNullable<RawSnapshot["ignoreUnused"]> = [];
+  for (const selector of opts.ignore ?? []) {
+    let matches: Element[];
+    try {
+      matches = Array.from(document.querySelectorAll(selector));
+    } catch (e) {
+      if (!(e instanceof DOMException)) throw e;
+      ignoreUnused.push({ selector, reason: "invalid" });
+      continue;
+    }
+    if (matches.length === 0) ignoreUnused.push({ selector, reason: "no match" });
+    for (const m of matches) ignored.add(m);
+  }
 
   const visitText = (node: Text, parent: number, whiteSpace: string) => {
     const text = collapse(node.data, whiteSpace);
@@ -139,6 +153,7 @@ export function collect(opts: { maxNodes: number; dpr: number }): {
       style,
       attrs,
     };
+    if (ignored.has(el)) raw.ignore = true;
     const transformed = style.transform !== "none" || style.rotate !== "none" || style.scale !== "none";
     if (transformed && el instanceof HTMLElement) {
       raw.layoutSize = { width: el.offsetWidth, height: el.offsetHeight };
@@ -172,6 +187,7 @@ export function collect(opts: { maxNodes: number; dpr: number }): {
     },
     nodes,
     truncated,
+    ...(ignoreUnused.length ? { ignoreUnused } : {}),
   };
   return { snapshot, elements };
 }
