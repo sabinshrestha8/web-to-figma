@@ -7,12 +7,13 @@ import { comparePngs, previewScreenshot } from "./visual.ts";
 
 const base = inject("fixtureUrl");
 const desktop = { width: 1440, height: 900, dpr: 1 };
+const mobile = { width: 390, height: 844, dpr: 1 };
 const walk = (n: Node): Node[] => [n, ...(n.type === "box" ? n.children.flatMap(walk) : [])];
 
 afterAll(closeBrowser);
 
-async function bundle(route: string): Promise<Bundle> {
-  const r = await convertUrls({ urls: [`${base}/${route}`], viewports: [desktop] });
+async function bundle(route: string, viewport = desktop): Promise<Bundle> {
+  const r = await convertUrls({ urls: [`${base}/${route}`], viewports: [viewport] });
   if (!r.ok) throw new Error(JSON.stringify(r.diagnostics));
   return r.value;
 }
@@ -334,22 +335,44 @@ describe("layout fixtures → IR", async () => {
     expect(chart.fills[0]?.type).toBe("image");
     expect(b.ir.diagnostics.filter((d) => d.code === "RASTERIZED")).not.toEqual([]);
   });
+
+  it("builds the mobile cards as a vertical stack at 390 px", async () => {
+    const b = await bundle("mobile", mobile);
+    const root = b.ir.captures[0]!.root;
+    expect(byId(root, "mobile-cards").layout).toMatchObject({ mode: "stack", direction: "vertical" });
+  });
+
+  it("keeps nested-complex overlays absolute in paint order", async () => {
+    const b = await bundle("nested-complex");
+    const root = b.ir.captures[0]!.root;
+    expect(byId(root, "overlay-badge").position).toBe("absolute");
+    expect(byId(root, "overlay-backdrop").position).toBe("absolute");
+    expect(b.ir.diagnostics.map((d) => d.code)).toContain("NEGATIVE_ZINDEX");
+    expect(byId(root, "overlay-zone").children.map((c) => c.name)).toEqual([
+      "div overlay-backdrop",
+      expect.stringContaining("h2"),
+      expect.stringContaining("p"),
+      "span overlay-badge",
+    ]);
+  });
 });
 
 // Phase 3 DoD: the IR, rendered back to HTML, differs from the original page by ≤5% of pixels.
 describe("visual diff: original page vs renderIRToHtml(IR)", () => {
   it.each([
-    "landing",
-    "card-grid",
-    "boxes",
-    "article",
-    "image-heavy",
-    "svg-icons",
-    "nav",
-    "form",
-    "dashboard",
-  ])("%s stays within the diff budget", async (route) => {
-    const b = await bundle(route);
+    ["landing", desktop],
+    ["card-grid", desktop],
+    ["boxes", desktop],
+    ["article", desktop],
+    ["image-heavy", desktop],
+    ["svg-icons", desktop],
+    ["nav", desktop],
+    ["form", desktop],
+    ["dashboard", desktop],
+    ["mobile", mobile],
+    ["nested-complex", desktop],
+  ] as const)("%s stays within the diff budget", async (route, viewport) => {
+    const b = await bundle(route, viewport);
     const capture = b.ir.captures[0]!;
     const reference = Buffer.from(b.assetData[capture.screenshot!]!, "base64");
     const preview = await previewScreenshot(
