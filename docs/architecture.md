@@ -90,7 +90,7 @@ A CLI pipeline plus the Figma plugin sandbox. There's no server, database, queue
 | `packages/capture/collector` | page | Zero-dependency DOM walker bundled to an IIFE → `RawSnapshot`. Reusable by a future browser extension | Phase 2 |
 | `packages/convert` | anywhere | Pure: `snapshotToIR`, CSS parsers, `flatten`, layout inference + Auto Layout simulator, z-order | Phase 2+ |
 | `packages/preview` | browser/Node | `renderIRToHtml(ir)`, used by the visual regression tests (a future web UI would reuse it for previews) | Phase 3 |
-| `apps/web` | Node + browser | UI, API, job store | Deferred to 7b; absent in V1 |
+| `apps/web` | Node + browser | UI, API, job store | Phase 7b ✓ |
 | `apps/figma-plugin` | Figma | Bundle import, fonts, node building, post-build checks | Phase 2+ |
 | `fixtures/site` | Node | Next.js fixture app (feature, layout, image, live and hostile pages) with expectations | Phase 2+ |
 
@@ -147,7 +147,7 @@ Vitest is pinned to 4.x because Vitest 5 requires Node ≥ 22.12. We'll move to 
 
 ```
 web-to-figma/
-  apps/web/              Next.js UI + API                    (deferred to 7b; absent in V1)
+  apps/web/              Next.js UI + API                    (Phase 7b ✓)
   apps/figma-plugin/     manifest, code.ts, ui, map/*.ts     (Phase 2)
   packages/ir/           schema, diagnostics, migrations, bundle, validate
   packages/capture/      browser, policy, settle, assets, collector, cli

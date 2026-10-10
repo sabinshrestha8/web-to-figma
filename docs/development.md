@@ -35,7 +35,7 @@ Build a thin end-to-end slice early, then widen fidelity one area at a time.
 | 5 | Images & SVG | Response capture, transcode/downscale, object-fit, bg images, SVG sanitize + `createNodeFromSvg`, fallbacks | No broken images on image-heavy; icons are editable vectors |
 | 6 | Layout engine | Candidates A/B, simulator, flex/wrap/block/grid, sizing, absolute children | nav, card-grid, form, dashboard emit Auto Layout; no visual regression vs Phase 5 |
 | 7 | Drift watch (reshaped from "Web app UX", 2026-10-10) | Config of watched pages, baselines, node + pixel + Figma diff per run, history, HTML report, CI gate | Unchanged page passes, changed page fails the gate with crops in the report |
-| 7b | Web app UX (deferred) | Next.js flow, job runner, API, guard, preview, diagnostics table, multi-route/viewport | The full user journey works from a clean clone |
+| 7b | Web app UX | Next.js flow, job runner, API, guard, preview, diagnostics table, multi-route/viewport | The full user journey works from a clean clone |
 | 8 | Hardening | Full fixture suite, hostile fixtures, perf budgets, security tests, compare script | All fixtures within thresholds; hostile tests pass |
 | 9 | V1 release | Production config, user and dev docs, plugin publish prep, release checklist | Fresh-machine install from the docs succeeds |
 
@@ -232,4 +232,18 @@ V1 is the CLI tool plus the Figma plugin. The web UI stays deferred (7b).
 - **Gate, run in a clean clone to a temp dir:** `pnpm install` (34s) → `pnpm browsers` → `pnpm check` green (unit 225, integration 63) → `pnpm plugin:build` (15 KB code / 454 KB UI) → capture landing (2.7s) → `pnpm compare` self-diff 0.00%, `--max 0` passes. Figma import/export still needs the desktop app (semi-automated by design).
 - **Cleanup:** removed the ignored root `drift.md` (a real-app report; testing.md says never commit those).
 - **Limit:** Playwright browsers are shared via the OS cache, so a same-machine clone doesn't re-prove the browser download; everything else was genuinely fresh.
+
+### Phase 7b: Web app UX (2026-10-10)
+
+Un-deferred: V1 users asked whether every flow needs the terminal, so the browser UI now exists for public URLs (login stays in the CLI).
+
+- **`apps/web`** (Next 16, `pnpm web` → `127.0.0.1:4317`): form (URLs, viewports as objects or `1440x900` strings, wait-for, settle), 500 ms polling, per-capture screenshot vs IR preview, counts, filterable diagnostics table, bundle download.
+- **Job runner** (`lib/jobs.ts`): in-memory `Map`, max 2 non-terminal jobs (else 429), artifacts in `.data/jobs/<id>/bundle.json`, 24 h sweep at startup via `instrumentation.ts`, crash fails loudly instead of sticking at running.
+- **API** (`lib/api.ts`, all logic unit-testable without a server): strict Zod input (`INVALID_INPUT`, new fatal code), URL-policy pre-check (400 `URL_BLOCKED`), Host/Origin/JSON guard (403), thin Next routes. Deviations from the `api.md` draft: no `cookieHeader`, no DOM-node count, coarse `stage`, IR endpoint returns `{ capture, assetUrls }`.
+- **Found while verifying on the dev server** (both real bugs, both fixed):
+  1. `instrumentation.ts` was also compiled for the Edge runtime, where `node:fs` fails — the sweep never ran. Fix: `export const runtime = "nodejs"`.
+  2. The collector entry was resolved from `import.meta.url`, which bundlers rewrite to the build output (Turbopack even statically evaluates `require.resolve`, so that can't anchor it either). `in-page.ts` now resolves from the server working directory with an `import.meta` fallback for plain runtimes.
+- **Tests:** guard table tests (incl. rebinding host, wrong port, cross-origin POST, non-JSON), validation/400/404/429 handler tests with fake stores, admission + sweep unit tests, and `flow.int.test.ts` (POST → poll → bundle → IR → asset PNG on the fixture site). The 403 was also proven over real HTTP with a raw `Host` header (fetch-level clients normalize it, so the unit tests spoof `Request` objects instead).
+- **Verified by hand:** `next build` green; full journey on `next dev` (POST → done, bundle attachment, page renders, evil-host and cross-origin 403s, unknown-id 404s). CI now also runs `pnpm --filter @w2f/web build`, since only a real build catches the bundler class of bugs above.
+- No IR version change (still 1.5; only the diagnostic enum grew).
 

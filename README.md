@@ -40,6 +40,14 @@ pnpm w2f https://app.example.com/dashboard --storage-state .data/auth.json -o da
 
 `auth.json` holds live session cookies and localStorage, so treat it like a password. Keep it in `.data/` (gitignored) and delete it when you're done. The tool only reads it; it's never copied into the bundle or logs.
 
+### Web UI (no terminal per command)
+
+```sh
+pnpm web   # http://127.0.0.1:4317
+```
+
+Enter URLs and viewports, watch progress, compare each capture's screenshot with its IR preview, filter the diagnostics table, and download the bundle. Public URLs only; pages behind a login stay on the CLI above.
+
 ### Import into Figma (desktop app)
 
 1. `pnpm plugin:build`
