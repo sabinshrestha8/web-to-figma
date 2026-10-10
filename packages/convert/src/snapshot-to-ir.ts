@@ -190,6 +190,17 @@ export function snapshotToIR(raw: RawSnapshot, opts: ConvertOptions): ConvertRes
       if (node) pairs.push({ raw: c.kind === "inline" ? null : c, node, domIndex });
     });
     const items: LayoutItem[] = pairs.map((p) => ({ raw: p.raw, node: p.node, domIndex: p.domIndex }));
+    for (const p of pairs) {
+      // Figma has no below-fill: a negative-z child is kept in paint order, above the parent fill.
+      if (p.raw && stackKey(p.raw, parent)[0] === 0) {
+        report.add(
+          "NEGATIVE_ZINDEX",
+          "negative z-index kept in paint order: Figma draws it above the parent fill",
+          `${captureId}:${p.raw.id}`,
+          "approximated",
+        );
+      }
+    }
     const inferred = inferLayout(parent, items, `${captureId}:${parent.id}`);
     for (const p of pairs) {
       const u = inferred.updates.get(p.node.id);

@@ -149,6 +149,7 @@
               "RASTERIZED",
               "IGNORE_SELECTOR_UNUSED",
               "LAYOUT_ABSOLUTE_FALLBACK",
+              "NEGATIVE_ZINDEX",
               "SCROLL_CONTAINER_EXPANDED"
             ]
           },

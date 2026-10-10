@@ -47,6 +47,7 @@ Source: [`packages/ir/src/diagnostics.ts`](../packages/ir/src/diagnostics.ts). `
 | `EMPTY_CAPTURE` | warning | The capture has no text and no elements besides `html`/`body`: usually a blank, loading or mid-navigation page. Check the reference screenshot | — |
 | `RASTERIZED` | warning | canvas/video/iframe/native control captured as an image | rasterized |
 | `LAYOUT_ABSOLUTE_FALLBACK` | info | Auto Layout candidate failed verification (`detail.reason`) | absolute |
+| `NEGATIVE_ZINDEX` | info | A negative z-index has no Figma equivalent: kept in paint order, so Figma draws it above the parent fill (once per page; `detail.count`, `nodeId` of an example) | approximated |
 
 ## Rules
 

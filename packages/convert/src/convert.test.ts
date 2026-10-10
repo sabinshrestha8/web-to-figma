@@ -347,6 +347,20 @@ describe("snapshotToIR box fidelity", () => {
     expect(bodyBox.children.map((c) => c.name)).toEqual(["d", "c", "b", "e", "a"]);
   });
 
+  it("reports negative z-index (kept in paint order, above the parent fill in Figma)", () => {
+    const snap = page((body) => [
+      el(
+        body.id,
+        "div",
+        { x: 0, y: 0, width: 9, height: 9 },
+        { ...bg("rgb(1, 1, 1)"), position: "absolute", "z-index": "-1" },
+      ),
+    ]);
+    const { capture, diagnostics } = convert(snap);
+    expect(box(capture.root.children[0]).children.map((c) => c.name)).toEqual(["div"]);
+    expect(diagnostics.map((d) => d.code)).toEqual(["NEGATIVE_ZINDEX"]);
+  });
+
   it("flattens paint-less wrappers around a same-sized child, keeping the wrapper's positioning", () => {
     const snap = page((body) => {
       const wrap = el(body.id, "div", { x: 10, y: 10, width: 100, height: 50 }, { position: "absolute" });
