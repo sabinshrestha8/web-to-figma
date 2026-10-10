@@ -89,8 +89,9 @@ export function createStore(execute: Execute = convertUrls): Store {
         captures: [],
         diagnostics: [],
       };
-      jobs.set(rec.id, rec);
+      // Mkdir first: a throw here must not leave a record occupying a 429 slot forever.
       mkdirSync(join(dataDir(), rec.id), { recursive: true });
+      jobs.set(rec.id, rec);
       void run(rec, input, execute, total);
       return rec;
     },
