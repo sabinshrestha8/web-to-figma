@@ -1,0 +1,10 @@
+{
+  "name": "Web to Figma",
+  "id": "web-to-figma",
+  "api": "1.0.0",
+  "editorType": ["figma"],
+  "main": "dist/code.js",
+  "ui": "dist/ui.html",
+  "documentAccess": "dynamic-page",
+  "networkAccess": { "allowedDomains": ["none"] }
+}
