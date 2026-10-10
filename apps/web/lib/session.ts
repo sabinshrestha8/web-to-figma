@@ -37,6 +37,8 @@ export interface LoginRecord {
   id: string;
   url: string;
   status: "open" | "done" | "failed";
+  /** Cookies/origins saved by saveLogin; null until done (mirrors the CLI's empty-save warning). */
+  saved: number | null;
 }
 
 export interface LoginStore {
@@ -53,21 +55,26 @@ export function createLoginStore(save: SaveLogin = (url, out) => saveLogin(url, 
   return {
     start(url) {
       if (active && active.status === "open") return null;
-      const rec: LoginRecord & { done?: Promise<void> } = { id: randomUUID(), url, status: "open" };
+      const rec: LoginRecord & { done?: Promise<void> } = {
+        id: randomUUID(),
+        url,
+        status: "open",
+        saved: null,
+      };
       rec.done = (async () => {
         try {
-          await save(url, authPath());
+          rec.saved = await save(url, authPath());
           rec.status = "done";
         } catch {
           rec.status = "failed";
         }
       })();
       active = rec as LoginRecord & { done: Promise<void> };
-      return { id: rec.id, url: rec.url, status: rec.status };
+      return { id: rec.id, url: rec.url, status: rec.status, saved: rec.saved };
     },
     get: (id) => {
       if (!active || active.id !== id) return undefined;
-      return { id: active.id, url: active.url, status: active.status };
+      return { id: active.id, url: active.url, status: active.status, saved: active.saved };
     },
     info: () => sessionInfo(),
     clear: () => {

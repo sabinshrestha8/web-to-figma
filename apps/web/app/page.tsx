@@ -67,10 +67,10 @@ export default function Home() {
       setLoginStatus("login not found");
       return;
     }
-    const s = (await r.json()) as { status: string };
+    const s = (await r.json()) as { status: string; saved: number | null };
     if (s.status !== "open") {
       stopLoginTimer();
-      setLoginStatus("saved");
+      setLoginStatus(s.status === "done" && s.saved === 0 ? "empty" : s.status);
       await refreshSession();
     } else {
       setLoginStatus("open");
@@ -103,6 +103,7 @@ export default function Home() {
 
   async function forgetSession() {
     await fetch("/api/session", { method: "DELETE" });
+    setLoginStatus(null);
     await refreshSession();
   }
 
@@ -254,7 +255,9 @@ export default function Home() {
               ? "A browser window opened — log in there, then close it."
               : loginStatus === "saved"
                 ? "Session saved."
-                : loginStatus}
+                : loginStatus === "empty"
+                  ? "Nothing was saved — did the login finish before you closed the window?"
+                  : loginStatus}
           </p>
         )}
       </section>

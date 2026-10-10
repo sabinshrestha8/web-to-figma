@@ -179,7 +179,7 @@ export async function postLogin(req: Request, logins: LoginStore): Promise<Respo
   return Response.json({ id: rec.id }, { status: 202 });
 }
 
-/** GET /api/login/:id → {id, url, status: open|done|failed}. */
+/** GET /api/login/:id → {id, url, status: open|done|failed, saved: cookies/origins or null}. */
 export async function getLogin(req: Request, logins: LoginStore, id: string): Promise<Response> {
   const blocked = guard(req);
   if (blocked) return blocked;

@@ -45,7 +45,7 @@ describe("login store", () => {
     expect(store.start("http://x/")).toBeNull();
     resolve();
     await new Promise((r) => setTimeout(r, 20));
-    expect(store.get(first?.id ?? "")?.status).toBe("done");
+    expect(store.get(first?.id ?? "")).toMatchObject({ status: "done", saved: 2 });
     expect(store.start("http://127.0.0.1:4400/auth")?.id).not.toBe(first?.id);
   });
 

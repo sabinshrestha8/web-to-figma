@@ -31,7 +31,7 @@ POST /api/login
   body { url }                           opens the page in a visible browser on this machine
   202 { id }                             log in there, then close the window to save the session
   400, 403, 429 (one open login at a time)
-GET /api/login/:id                       200 { id, url, status: "open"|"done"|"failed" }
+GET /api/login/:id                       200 { id, url, status: "open"|"done"|"failed", saved } (saved: cookies/origins, null until done)
 GET /api/session                         200 { present, cookies, domains, origins } (metadata only, never values)
 DELETE /api/session                      200 { deleted }
 ```
