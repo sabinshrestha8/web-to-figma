@@ -183,3 +183,7 @@ The functions in `apps/figma-plugin/src/map/*.ts` are pure (IR → plain propert
 ## 6. Components
 
 V1 produces visual structure only, not Figma components. The path for later versions is: React fiber name (already captured in `source.component`) → repeated-structure detection → Figma component and instances. The IR can grow that additively (minor version).
+
+## Ignored content (IR 1.5)
+
+Elements matching a capture `ignore` selector (live data: clocks, charts) get `ignore: true` on their node. It survives flattening (the surviving child inherits it), and a text node is ignored when any inline element inside its paragraph is. The Figma build ignores the flag; drift compares only such a node's bounds and masks its area in the pixel diff.

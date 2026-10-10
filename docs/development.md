@@ -195,3 +195,18 @@ Reshaped from "Web app UX": drift (production vs baseline, production vs Figma) 
 - **Tests:** config validation and report escaping/crops/gate/trend (unit); a full loop on the fixture site (integration): baseline set → unchanged passes → changed page trips the gate with crops → `--accept` → passes; a blocked page fails without stopping the run; Figma skipped without a token.
 - **Verified by hand:** CLI exit codes 0/1/2; report rendered and inspected (crops clipped and labelled).
 - No IR schema change (still 1.4).
+
+### Phase 7 follow-up: ignore live content (2026-10-10)
+
+Two runs of `drift:run` on the real dashboard gave 5 changes and 0.02% pixels:
+- 4 were SVG icons whose React `useId` ids are regenerated on every load. **Fixed:** markup is compared with canonical ids (`canonicalIds`).
+- The other was the header clock, plus 3 charts whose axes changed with live data. These are real changes but not UI drift, so they need an ignore mechanism.
+
+- **`ignore` selectors** (drift config per page, `pnpm w2f --ignore`; IR 1.5). The collector flags matching elements; convert sets `ignore` on their nodes. The flag survives flattening, and a paragraph holding an ignored inline (`Updated <time>`) is ignored as a whole.
+- **Drift** checks only an ignored node's bounds, never its content or children. Its area (union over both captures) is painted out of both screenshots before the pixel diff, and the report says how many regions were masked.
+- **`IGNORE_SELECTOR_UNUSED`** (warning): a selector that's invalid CSS or matches nothing, so a typo can't silently ignore nothing.
+- **Tests:**
+  - unit tests for boxes, flattened wrappers, a nested inline in a paragraph, drift bounds-only and `ignoredRects`, all mutation-checked;
+  - an integration test on the new `/live` fixture: noisy without `ignore`; 0 changes, 0% pixels and 4 masked regions with it (mutation-checked: without the mask it's 0.89%); both unused-selector warnings.
+- **Limit:** an ignored element with `display: contents` has no box, so nothing is flagged; use a selector for its children.
+

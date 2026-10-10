@@ -80,6 +80,7 @@ List the pages in `.data/drift.config.json`:
   "pages": [
     { "name": "dashboard", "url": "https://app.example.com/dashboard", "viewport": "1440x900",
       "storageState": "auth.json", "waitFor": ["[data-loaded]"],
+      "ignore": ["header time", ".MuiChartsSurface-root"],
       "figma": { "file": "FILE_KEY", "node": "12:34" }, "maxFigmaChanges": 20 }
   ]
 }
@@ -92,6 +93,8 @@ pnpm drift:run --page dashboard
 ```
 
 Results land in `.data/drift/`: `report.html` (changes grouped by kind with baseline/now crops, trend, gate result), `history.jsonl`, and per page the baseline, latest capture and `diff.png`. It exits 1 when a page fails or goes over a threshold (`maxChanges`, `maxPixelPercent`, `maxFigmaChanges`, top-level or per page), so it can gate CI. Figma is compared when `FIGMA_TOKEN` is set. To run it on a schedule, use cron, Task Scheduler or a CI job. `storageState` is relative to the config file.
+
+`ignore` lists CSS selectors of live content (clocks, dates, counters, charts). For those elements only position and size are compared, and their area is masked out of the pixel diff, so the gate stays quiet when only the data changed. A selector that is invalid or matches nothing is reported as `IGNORE_SELECTOR_UNUSED`. `pnpm w2f --ignore <selector>` does the same for one-off captures compared with `pnpm drift`.
 
 ## Docs
 
