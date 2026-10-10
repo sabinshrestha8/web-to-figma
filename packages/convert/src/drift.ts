@@ -148,6 +148,8 @@ function comparePair(a: Node, b: Node, path: string, entries: DriftEntry[]): voi
       detail: `${r2(a.bounds.width)}×${r2(a.bounds.height)} → ${r2(b.bounds.width)}×${r2(b.bounds.height)}`,
     });
   }
+  // Live content (an `ignore` selector matched it on either side): where it sits, not what it shows.
+  if (a.ignore || b.ignore) return;
   if (a.type === "text" && b.type === "text" && a.characters !== b.characters) {
     out.push({
       kind: "text-changed",
@@ -222,6 +224,12 @@ function compareChildren(a: Node[], b: Node[], path: string, out: DriftEntry[]):
       after: n.bounds,
     });
   }
+}
+
+/** Bounds of the outermost ignored nodes, for masking them out of a pixel diff. */
+export function ignoredRects(root: Node): Node["bounds"][] {
+  if (root.ignore) return [root.bounds];
+  return root.type === "box" ? root.children.flatMap(ignoredRects) : [];
 }
 
 /** Node-level diff of two captures of the same page. Roots are expected to be the same viewport. */

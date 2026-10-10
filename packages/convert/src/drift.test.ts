@@ -1,6 +1,6 @@
 import type { BoxNode, Node, TextNode } from "@w2f/ir";
 import { describe, expect, it } from "vitest";
-import { diffCaptures, renderDrift } from "./drift.ts";
+import { diffCaptures, ignoredRects, renderDrift } from "./drift.ts";
 
 let id = 0;
 const box = (name: string, x: number, y: number, w: number, h: number, children: Node[] = []): BoxNode => ({
@@ -146,5 +146,16 @@ describe("drift", () => {
     expect(
       diffCaptures(root([icon(svg(":r14:"))]), root([icon(svg(":r16:", "M0 0h12"))])).entries,
     ).toMatchObject([{ kind: "restyled", detail: "markup changed" }]);
+  });
+
+  it("compares only the bounds of ignored nodes, and lists them for masking", () => {
+    const live = (t: string, y = 0): BoxNode => ({ ...box("clock", 0, y, 100, 20, [text(t)]), ignore: true });
+    expect(diffCaptures(root([live("07:18")]), root([live("09:42")])).entries).toEqual([]);
+    expect(diffCaptures(root([live("07:18")]), root([live("09:42", 30)])).entries.map((e) => e.kind)).toEqual(
+      ["moved"],
+    );
+    expect(ignoredRects(root([box("a", 0, 0, 10, 10, [live("x", 50)])]))).toEqual([
+      { x: 0, y: 50, width: 100, height: 20 },
+    ]);
   });
 });
