@@ -222,3 +222,14 @@ Two runs of `drift:run` on the real dashboard gave 5 changes and 0.02% pixels:
 - **Compare script:** `--capture N` picks the viewport (same convention as `drift`), `--max` rejects non-numbers and negatives instead of silently exiting 0. Verified by hand against a two-viewport bundle (exit codes 0/1, both error paths).
 - **Left for later:** cross-origin POST → 403 needs `apps/web` (Phase 7b); the preview still paints negative-z children above the parent fill (the 3.92% remainder, documented in testing.md).
 
+### Phase 9: V1 release (2026-10-10)
+
+V1 is the CLI tool plus the Figma plugin. The web UI stays deferred (7b).
+
+- **Production config:** MIT `LICENSE` (was: none); `apps/figma-plugin/manifest.prod.json` (name `Web to Figma`, stable prod `id`; the `(dev)` manifest stays for local work). The prod id must never change after the first Community publish. Nothing is published to npm (all packages `private`); versions left as-is, release is a `v1.0.0` tag (see `docs/release.md`).
+- **Docs match the code:** architecture §2/§5/§6/§10 rewritten CLI-first (no more `pnpm start`, job runner, `.data/jobs`); scope matrix auth cell now says storage-state file, not pasted cookie; `api.md` bannered as deferred 7b design; `security.md` server-exposure threat/control marked deferred; `development.md` CI Node fixed (20, not 24).
+- **Release checklist** (`docs/release.md`): cut steps, the fresh-install gate, plugin publish steps, post-release notes. README docs table links it.
+- **Gate, run in a clean clone to a temp dir:** `pnpm install` (34s) → `pnpm browsers` → `pnpm check` green (unit 225, integration 63) → `pnpm plugin:build` (15 KB code / 454 KB UI) → capture landing (2.7s) → `pnpm compare` self-diff 0.00%, `--max 0` passes. Figma import/export still needs the desktop app (semi-automated by design).
+- **Cleanup:** removed the ignored root `drift.md` (a real-app report; testing.md says never commit those).
+- **Limit:** Playwright browsers are shared via the OS cache, so a same-machine clone doesn't re-prove the browser download; everything else was genuinely fresh.
+
