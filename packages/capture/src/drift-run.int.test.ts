@@ -81,4 +81,30 @@ describe("drift:run", () => {
     expect(run.results[1]?.figma).toEqual({ skipped: "FIGMA_TOKEN is not set" });
     expect(run.ok).toBe(false);
   });
+
+  it("ignores live content: only its bounds are compared and its pixels masked", async () => {
+    const live = (ignore?: string[]) =>
+      writeFileSync(
+        config,
+        JSON.stringify({
+          out: "drift3",
+          pages: [{ name: "live", url: `${base}/live`, viewport: "1024x768", ...(ignore ? { ignore } : {}) }],
+        }),
+      );
+    live();
+    await runDrift(config);
+    const noisy = (await runDrift(config)).results[0];
+    expect(noisy?.drift?.entries.map((e) => e.kind)).toContain("text-changed");
+    expect(noisy?.pixelPercent).toBeGreaterThan(0);
+
+    live(["time", "[data-testid=chart]", ".nope", "[["]);
+    await runDrift(config, { accept: true });
+    const quiet = (await runDrift(config)).results[0];
+    expect(quiet?.drift?.entries).toEqual([]);
+    expect(quiet?.pixelPercent).toBe(0);
+    expect(quiet?.masked).toBe(4); // time + chart, in both captures
+    expect(
+      quiet?.diagnostics.filter((d) => d.code === "IGNORE_SELECTOR_UNUSED").map((d) => d.message),
+    ).toEqual(['ignore selector ".nope" matched nothing', 'ignore selector "[[" is not valid CSS']);
+  });
 });
