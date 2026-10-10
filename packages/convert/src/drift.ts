@@ -102,6 +102,15 @@ function layoutDetail(a: Layout, b: Layout): string | null {
   return diffs.length ? diffs.join("; ") : null;
 }
 
+/**
+ * SVG ids renamed in order of first appearance: React `useId` (`:r14:`) and chart libraries mint
+ * new ids on every load, which would otherwise flag every such icon as changed.
+ */
+export function canonicalIds(svg: string): string {
+  const ids = [...new Set(Array.from(svg.matchAll(/\bid="([^"]+)"/g), (m) => m[1] ?? ""))];
+  return ids.reduce((out, id, i) => out.split(id).join(`id${i}`), svg);
+}
+
 function restyleDetail(a: Node, b: Node): string | null {
   const diffs: string[] = [];
   if (a.type === "box" && b.type === "box") {
@@ -111,7 +120,8 @@ function restyleDetail(a: Node, b: Node): string | null {
     // Clipping a childless box changes nothing visible (Figma rectangles can't even clip).
     if (a.clip !== b.clip && (a.children.length > 0 || b.children.length > 0)) diffs.push("clip");
   }
-  if (a.type === "vector" && b.type === "vector" && a.svg !== b.svg) diffs.push("markup");
+  if (a.type === "vector" && b.type === "vector" && canonicalIds(a.svg) !== canonicalIds(b.svg))
+    diffs.push("markup");
   if (!near(a.effects, b.effects)) diffs.push("effects");
   if (a.opacity !== b.opacity) diffs.push(`opacity ${a.opacity} → ${b.opacity}`);
   if (a.blendMode !== b.blendMode) diffs.push("blend");

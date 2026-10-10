@@ -132,4 +132,19 @@ describe("drift", () => {
         .sort(),
     ).toEqual(["layout-changed", "restyled"]);
   });
+
+  it("ignores regenerated svg ids but not real markup changes", () => {
+    const icon = (svg: string): Node =>
+      ({
+        ...box("icon", 0, 0, 24, 24),
+        type: "vector",
+        svg,
+      }) as unknown as Node;
+    const svg = (id: string, d = "M0 0h24") =>
+      `<svg><clipPath id="${id}-clip"><rect/></clipPath><g clip-path="url(#${id}-clip)"><path d="${d}"/></g></svg>`;
+    expect(diffCaptures(root([icon(svg(":r14:"))]), root([icon(svg(":r16:"))])).entries).toEqual([]);
+    expect(
+      diffCaptures(root([icon(svg(":r14:"))]), root([icon(svg(":r16:", "M0 0h12"))])).entries,
+    ).toMatchObject([{ kind: "restyled", detail: "markup changed" }]);
+  });
 });
