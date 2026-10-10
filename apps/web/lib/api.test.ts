@@ -1,16 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { getAsset, getBundle, getCaptureIR, getConversion, postConversions } from "./api.ts";
+import {
+  deleteSession,
+  getAsset,
+  getBundle,
+  getCaptureIR,
+  getConversion,
+  getLogin,
+  getSession,
+  postConversions,
+  postLogin,
+} from "./api.ts";
 import { createStore } from "./jobs.ts";
+import { createLoginStore } from "./session.ts";
 
 const HOST = "127.0.0.1:4317";
-const post = (body: unknown, host = HOST) =>
-  new Request(`http://${HOST}/api/conversions`, {
+const post = (path: string, body: unknown, host = HOST) =>
+  new Request(`http://${HOST}${path}`, {
     method: "POST",
     headers: { host, "content-type": "application/json" },
     body: JSON.stringify(body),
   });
 const get = (path: string, host = HOST) => new Request(`http://${HOST}${path}`, { headers: { host } });
 const never = () => new Promise<never>(() => {});
+const logins = () => createLoginStore(never);
 
 const valid = {
   targets: [{ url: "http://127.0.0.1:4400/landing" }],
@@ -19,13 +31,17 @@ const valid = {
 
 describe("POST /api/conversions", () => {
   it("queues a job with 202 {id}", async () => {
-    const r = await postConversions(post(valid), createStore(never));
+    const r = await postConversions(post("/api/conversions", valid), createStore(never), logins());
     expect(r.status).toBe(202);
     expect((await r.json()) as { id: string }).toMatchObject({ id: expect.any(String) });
   });
 
   it("rejects a cross-origin POST with 403", async () => {
-    const r = await postConversions(post(valid, "evil.com"), createStore(never));
+    const r = await postConversions(
+      post("/api/conversions", valid, "evil.com"),
+      createStore(never),
+      logins(),
+    );
     expect(r.status).toBe(403);
   });
 
@@ -40,7 +56,7 @@ describe("POST /api/conversions", () => {
       { targets: [{ url: "x" }], viewports: [{ width: 1440, height: 900, dpr: 3 }] },
       { targets: [{ url: "x" }], viewports: ["1440x900"], options: { extraSettleMs: 6000 } },
     ]) {
-      const r = await postConversions(post(body), store);
+      const r = await postConversions(post("/api/conversions", body), store, logins());
       expect(r.status, JSON.stringify(body)).toBe(400);
       const codes = (((await r.json()) as { diagnostics: { code: string }[] }).diagnostics ?? []).map(
         (d) => d.code,
@@ -51,8 +67,12 @@ describe("POST /api/conversions", () => {
 
   it("rejects a metadata URL with 400 URL_BLOCKED", async () => {
     const r = await postConversions(
-      post({ targets: [{ url: "http://169.254.169.254/latest" }], viewports: ["1440x900"] }),
+      post("/api/conversions", {
+        targets: [{ url: "http://169.254.169.254/latest" }],
+        viewports: ["1440x900"],
+      }),
       createStore(never),
+      logins(),
     );
     expect(r.status).toBe(400);
     expect(await r.json()).toMatchObject({ diagnostics: [{ code: "URL_BLOCKED" }] });
@@ -60,9 +80,21 @@ describe("POST /api/conversions", () => {
 
   it("rejects the third concurrent job with 429", async () => {
     const store = createStore(never);
-    expect((await postConversions(post(valid), store)).status).toBe(202);
-    expect((await postConversions(post(valid), store)).status).toBe(202);
-    expect((await postConversions(post(valid), store)).status).toBe(429);
+    const loginStore = logins();
+    const submit = () => postConversions(post("/api/conversions", valid), store, loginStore);
+    expect((await submit()).status).toBe(202);
+    expect((await submit()).status).toBe(202);
+    expect((await submit()).status).toBe(429);
+  });
+
+  it("rejects session:true with 400 when no session is saved", async () => {
+    const r = await postConversions(
+      post("/api/conversions", { ...valid, session: true }),
+      createStore(never),
+      logins(),
+    );
+    expect(r.status).toBe(400);
+    expect(await r.json()).toMatchObject({ diagnostics: [{ code: "INVALID_INPUT" }] });
   });
 });
 
@@ -73,5 +105,37 @@ describe("job reads", () => {
     expect((await getBundle(get("/x"), store, "nope")).status).toBe(404);
     expect((await getCaptureIR(get("/x"), store, "nope", "c1")).status).toBe(404);
     expect((await getAsset(get("/x"), store, "nope", "dead")).status).toBe(404);
+  });
+});
+
+describe("login endpoints", () => {
+  it("opens a login with 202, reports it, rejects a second open one with 429", async () => {
+    const logins = createLoginStore(never);
+    const opened = await postLogin(post("/api/login", { url: "http://127.0.0.1:4400/auth" }), logins);
+    expect(opened.status).toBe(202);
+    const { id } = (await opened.json()) as { id: string };
+    expect((await getLogin(get(`/api/login/${id}`), logins, id)).status).toBe(200);
+    expect(await (await getLogin(get(`/api/login/${id}`), logins, id)).json()).toMatchObject({
+      status: "open",
+    });
+    expect((await postLogin(post("/api/login", { url: "http://127.0.0.1:4400/auth" }), logins)).status).toBe(
+      429,
+    );
+    expect((await getLogin(get("/api/login/nope"), logins, "nope")).status).toBe(404);
+  });
+
+  it("rejects bad login bodies and blocked URLs", async () => {
+    const logins = createLoginStore(never);
+    expect((await postLogin(post("/api/login", {}), logins)).status).toBe(400);
+    const blocked = await postLogin(post("/api/login", { url: "http://169.254.169.254/" }), logins);
+    expect(blocked.status).toBe(400);
+    expect(await blocked.json()).toMatchObject({ diagnostics: [{ code: "URL_BLOCKED" }] });
+    expect((await postLogin(post("/api/login", { url: "x" }), logins)).status).toBe(400);
+  });
+
+  it("reports and forgets the saved session without secret values", async () => {
+    const logins = createLoginStore(never);
+    expect(await (await getSession(get("/api/session"), logins)).json()).toMatchObject({ present: false });
+    expect(await (await deleteSession(get("/api/session"), logins)).json()).toEqual({ deleted: false });
   });
 });

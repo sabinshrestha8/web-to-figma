@@ -3,6 +3,7 @@ import { diag } from "@w2f/ir";
 import { z } from "zod";
 import { guard } from "./guard.ts";
 import { type JobStatus, type NormalizedInput, readBundle, type Store } from "./jobs.ts";
+import type { LoginStore } from "./session.ts";
 
 const viewportObject = z.object({
   width: z.number().int().min(240).max(3840),
@@ -27,6 +28,7 @@ export const conversionInput = z.object({
       extraSettleMs: z.number().int().min(0).max(5000).optional(),
     })
     .optional(),
+  session: z.boolean().optional(),
 });
 export type ConversionInput = z.infer<typeof conversionInput>;
 
@@ -59,7 +61,7 @@ const bad = (message: string) =>
   Response.json({ diagnostics: [diag("INVALID_INPUT", message)] }, { status: 400 });
 
 /** POST /api/conversions → 202 {id} (queued), 400, 403 or 429. */
-export async function postConversions(req: Request, store: Store): Promise<Response> {
+export async function postConversions(req: Request, store: Store, logins: LoginStore): Promise<Response> {
   const blocked = guard(req);
   if (blocked) return blocked;
   let body: unknown;
@@ -78,7 +80,15 @@ export async function postConversions(req: Request, store: Store): Promise<Respo
     const violation = await policy.check(url, false);
     if (violation) return Response.json({ diagnostics: [violation] }, { status: 400 });
   }
-  const job = store.create(input);
+  let storageState: NormalizedInput["storageState"];
+  if (parsed.data.session === true) {
+    try {
+      storageState = logins.load();
+    } catch (e) {
+      return bad(e instanceof Error ? e.message : "no saved session");
+    }
+  }
+  const job = store.create({ ...input, ...(storageState === undefined ? {} : { storageState }) });
   if (!job) return Response.json({ error: "2 jobs already running" }, { status: 429 });
   return Response.json({ id: job.id }, { status: 202 });
 }
@@ -142,4 +152,52 @@ export async function getAsset(req: Request, _store: Store, id: string, assetId:
   return new Response(Buffer.from(base64, "base64"), {
     headers: { "content-type": meta.mime },
   });
+}
+
+const loginBody = z.object({ url: z.string().min(1).max(2000) });
+
+/**
+ * POST /api/login → 202 {id}. Opens the URL in a visible browser on this machine;
+ * the user logs in there and closes the window, which saves the session for captures.
+ */
+export async function postLogin(req: Request, logins: LoginStore): Promise<Response> {
+  const blocked = guard(req);
+  if (blocked) return blocked;
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return bad("body is not JSON");
+  }
+  const parsed = loginBody.safeParse(body);
+  if (!parsed.success)
+    return bad(parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
+  const violation = await createPolicy({ allowPrivateNetworks: true }).check(parsed.data.url, false);
+  if (violation) return Response.json({ diagnostics: [violation] }, { status: 400 });
+  const rec = logins.start(parsed.data.url);
+  if (!rec) return Response.json({ error: "a login is already open" }, { status: 429 });
+  return Response.json({ id: rec.id }, { status: 202 });
+}
+
+/** GET /api/login/:id → {id, url, status: open|done|failed}. */
+export async function getLogin(req: Request, logins: LoginStore, id: string): Promise<Response> {
+  const blocked = guard(req);
+  if (blocked) return blocked;
+  const rec = logins.get(id);
+  if (!rec) return Response.json({ error: "not found" }, { status: 404 });
+  return Response.json(rec);
+}
+
+/** GET /api/session → saved-session metadata (never secret values). */
+export async function getSession(req: Request, logins: LoginStore): Promise<Response> {
+  const blocked = guard(req);
+  if (blocked) return blocked;
+  return Response.json(logins.info());
+}
+
+/** DELETE /api/session → forget the saved session. */
+export async function deleteSession(req: Request, logins: LoginStore): Promise<Response> {
+  const blocked = guard(req);
+  if (blocked) return blocked;
+  return Response.json({ deleted: logins.clear() });
 }

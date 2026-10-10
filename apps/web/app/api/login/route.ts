@@ -1,9 +1,8 @@
-import { postConversions } from "../../../lib/api.ts";
-import { store } from "../../../lib/jobs.ts";
+import { postLogin } from "../../../lib/api.ts";
 import { loginStore } from "../../../lib/session.ts";
 
 export const runtime = "nodejs";
 
 export async function POST(req: Request): Promise<Response> {
-  return postConversions(req, store, loginStore);
+  return postLogin(req, loginStore);
 }

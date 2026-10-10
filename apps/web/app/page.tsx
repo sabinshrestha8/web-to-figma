@@ -4,6 +4,7 @@ import type { Capture, Diagnostic } from "@w2f/ir";
 import { renderIRToHtml } from "@w2f/preview";
 import { type FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import type { CaptureSummary, JobStatus } from "../lib/jobs.ts";
+import type { SessionInfo } from "../lib/session.ts";
 
 interface Preview {
   html: string;
@@ -24,7 +25,12 @@ export default function Home() {
   const [preview, setPreview] = useState<Preview | null>(null);
   const [diagFilter, setDiagFilter] = useState("");
   const [severity, setSeverity] = useState("all");
+  const [session, setSession] = useState<SessionInfo | null>(null);
+  const [loginUrl, setLoginUrl] = useState("");
+  const [loginStatus, setLoginStatus] = useState<string | null>(null);
+  const [useSession, setUseSession] = useState(true);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const loginTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const stop = useCallback(() => {
     if (timer.current) {
@@ -32,7 +38,73 @@ export default function Home() {
       timer.current = null;
     }
   }, []);
-  useEffect(() => stop, [stop]);
+  const stopLoginTimer = useCallback(() => {
+    if (loginTimer.current) {
+      clearInterval(loginTimer.current);
+      loginTimer.current = null;
+    }
+  }, []);
+  useEffect(
+    () => () => {
+      stop();
+      stopLoginTimer();
+    },
+    [stop, stopLoginTimer],
+  );
+
+  const refreshSession = useCallback(async () => {
+    const r = await fetch("/api/session").catch(() => null);
+    if (r?.ok) setSession((await r.json()) as SessionInfo);
+  }, []);
+  useEffect(() => {
+    void refreshSession();
+  }, [refreshSession]);
+
+  async function pollLogin(id: string) {
+    const r = await fetch(`/api/login/${encodeURIComponent(id)}`);
+    if (!r.ok) {
+      stopLoginTimer();
+      setLoginStatus("login not found");
+      return;
+    }
+    const s = (await r.json()) as { status: string };
+    if (s.status !== "open") {
+      stopLoginTimer();
+      setLoginStatus("saved");
+      await refreshSession();
+    } else {
+      setLoginStatus("open");
+    }
+  }
+
+  async function startLogin(e: FormEvent) {
+    e.preventDefault();
+    stopLoginTimer();
+    setLoginStatus(null);
+    const r = await fetch("/api/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ url: loginUrl.trim() }),
+    });
+    if (r.status === 202) {
+      const { id } = (await r.json()) as { id: string };
+      setLoginStatus("open");
+      loginTimer.current = setInterval(() => void pollLogin(id), 2000);
+      await pollLogin(id);
+    } else if (r.status === 400) {
+      const { diagnostics } = (await r.json()) as { diagnostics: Diagnostic[] };
+      setLoginStatus(diagnostics.map((d) => `${d.code}: ${d.message}`).join("; "));
+    } else if (r.status === 429) {
+      setLoginStatus("a login window is already open");
+    } else {
+      setLoginStatus(`request failed (${r.status})`);
+    }
+  }
+
+  async function forgetSession() {
+    await fetch("/api/session", { method: "DELETE" });
+    await refreshSession();
+  }
 
   async function poll(id: string) {
     const r = await fetch(`/api/conversions/${encodeURIComponent(id)}`);
@@ -78,6 +150,7 @@ export default function Home() {
           ...(wait.length > 0 ? { waitFor: wait } : {}),
           ...(ms === undefined ? {} : { extraSettleMs: ms }),
         },
+        ...(useSession && session?.present ? { session: true } : {}),
       }),
     });
     if (r.status === 202) {
@@ -143,6 +216,49 @@ export default function Home() {
         Capture a page, review the IR preview, download the bundle for the Figma plugin.
       </p>
 
+      <section className="mt-6 rounded-xl bg-white p-4 shadow">
+        <h2 className="font-semibold">Saved session</h2>
+        {session?.present ? (
+          <div className="mt-2 text-sm">
+            <p>
+              {session.cookies} cookies ({session.domains.join(", ") || "—"})
+              {session.origins.length > 0 ? ` · localStorage: ${session.origins.join(", ")}` : ""}
+            </p>
+            <button
+              type="button"
+              onClick={() => void forgetSession()}
+              className="mt-2 rounded-md bg-slate-200 px-3 py-1 text-sm"
+            >
+              Forget session
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={(e) => void startLogin(e)} className="mt-2 flex gap-2">
+            <input
+              value={loginUrl}
+              onChange={(e) => setLoginUrl(e.target.value)}
+              placeholder="https://app.example.com/login"
+              className="w-full rounded-md border border-slate-300 p-2 font-mono text-sm"
+            />
+            <button
+              type="submit"
+              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+            >
+              Log in…
+            </button>
+          </form>
+        )}
+        {loginStatus && (
+          <p className="mt-2 text-sm text-slate-600">
+            {loginStatus === "open"
+              ? "A browser window opened — log in there, then close it."
+              : loginStatus === "saved"
+                ? "Session saved."
+                : loginStatus}
+          </p>
+        )}
+      </section>
+
       <form onSubmit={(e) => void submit(e)} className="mt-6 rounded-xl bg-white p-4 shadow">
         <label className="block text-sm font-semibold">
           URLs (one per line, up to 10)
@@ -190,6 +306,15 @@ export default function Home() {
         >
           Capture
         </button>
+        <label className="mt-3 flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={useSession && session?.present === true}
+            onChange={(e) => setUseSession(e.target.checked)}
+            disabled={!session?.present}
+          />
+          Capture with the saved session{session?.present ? "" : " (log in first)"}
+        </label>
       </form>
 
       {error && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-800">{error}</p>}

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { type ConvertJob, convertUrls, type Viewport } from "@w2f/capture";
+import { type ConvertJob, convertUrls, type StorageState, type Viewport } from "@w2f/capture";
 import type { Bundle, Capture, Diagnostic, Node, Result } from "@w2f/ir";
 import { dataDir } from "./sweep.ts";
 
@@ -36,6 +36,7 @@ export interface NormalizedInput {
   viewports: Viewport[];
   waitForSelectors?: string[];
   extraSettleMs?: number;
+  storageState?: StorageState;
 }
 
 interface JobRecord extends JobStatus {
@@ -111,6 +112,7 @@ async function run(rec: JobRecord, input: NormalizedInput, execute: Execute, tot
       viewports: input.viewports,
       ...(input.waitForSelectors === undefined ? {} : { waitForSelectors: input.waitForSelectors }),
       ...(input.extraSettleMs === undefined ? {} : { extraSettleMs: input.extraSettleMs }),
+      ...(input.storageState === undefined ? {} : { storageState: input.storageState }),
       onProgress: (done) => {
         rec.progress = total === 0 ? 1 : done / total;
       },
