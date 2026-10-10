@@ -41,6 +41,7 @@ Source: [`packages/ir/src/diagnostics.ts`](../packages/ir/src/diagnostics.ts). `
 | `TEXT_REFLOW` | warning | A built Figma text node's height differs from the browser's by more than half a line (it wrapped differently: metrics, kerning, a substituted font), or hug text renders wider than measured and overflows a clipped parent (cut glyphs). Once per build per case; `detail.count`, `nodeId` of an example | approximated |
 | `PSEUDO_ELEMENT_SKIPPED` | warning | `::before/::after` with visible content | skipped |
 | `PAGE_HEIGHT_CLIPPED` | warning | Page taller than the capture height cap | — |
+| `IGNORE_SELECTOR_UNUSED` | warning | An `ignore` selector (capture `--ignore`, drift config `ignore`) is not valid CSS or matched no element, so it ignores nothing (`detail.selector`) | — |
 | `SCROLL_CONTAINER_EXPANDED` | info | The document doesn't scroll but a large inner element does (app-shell layout). The viewport was made taller until its content fits (`detail.capturedHeight`), so viewport-sized elements (100vh) are drawn that tall. The IR keeps the requested viewport | — |
 | `PAGE_REDIRECTED` | warning | The captured URL differs from the requested one (server redirect, or the page navigated itself, e.g. an auth guard sending you to `/login`), or the page kept navigating past the settle limit (`detail.requested`/`detail.captured`) | — |
 | `EMPTY_CAPTURE` | warning | The capture has no text and no elements besides `html`/`body`: usually a blank, loading or mid-navigation page. Check the reference screenshot | — |

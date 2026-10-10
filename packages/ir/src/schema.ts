@@ -2,11 +2,12 @@ import { z } from "zod";
 import { Diagnostic } from "./diagnostics.ts";
 
 /** Current IR version. Minor = additive optional fields; major = breaking, needs a migration. */
-export const SCHEMA_VERSION = "1.4";
+export const SCHEMA_VERSION = "1.5";
 // 1.1: optional `tileSize` on image paints.
 // 1.2: diagnostic code SCROLL_CONTAINER_EXPANDED.
 // 1.3: optional `crop` on image paints, optional `fallback` raster on vector nodes.
 // 1.4: optional `truncate` on text nodes.
+// 1.5: optional `ignore` on nodes, diagnostic code IGNORE_SELECTOR_UNUSED.
 
 // All lengths are CSS px. Colors are sRGB floats 0–1.
 const num = z.number().finite();
@@ -134,6 +135,8 @@ const base = {
   /** Only meaningful when the parent layout is grid. 0-based. */
   gridCell: z.object({ row: int.nonnegative(), column: int.nonnegative() }).optional(),
   source: z.object({ tag: z.string(), selector: z.string(), component: z.string().optional() }),
+  /** Matched a capture `ignore` selector (live data): drift checks only its bounds, not its content. */
+  ignore: z.boolean().optional(),
 };
 
 export const TextStyle = z.object({

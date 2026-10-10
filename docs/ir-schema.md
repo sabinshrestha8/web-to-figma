@@ -2,7 +2,7 @@
 
 Source of truth: [`packages/ir/src/schema.ts`](../packages/ir/src/schema.ts) (Zod 4). TypeScript types come from `z.infer`.
 - Generated JSON Schema: [`ir.schema.json`](ir.schema.json). It's kept in sync by `tests/docs.test.ts`; run `pnpm test -u` to regenerate it.
-- Current version: **`1.4`**. Changelog: 1.1 adds optional `tileSize` (CSS px) to image paints, used with `scale: "tile"`. 1.2 adds the diagnostic code `SCROLL_CONTAINER_EXPANDED`. 1.3 adds optional `crop` (x, y, width, height as fractions of the image) to image paints and an optional `fallback` asset (PNG of the same markup) to vector nodes. 1.4 adds optional `truncate` (one line ending in "…" at its bounds) to text nodes.
+- Current version: **`1.5`**. Changelog: 1.1 adds optional `tileSize` (CSS px) to image paints, used with `scale: "tile"`. 1.2 adds the diagnostic code `SCROLL_CONTAINER_EXPANDED`. 1.3 adds optional `crop` (x, y, width, height as fractions of the image) to image paints and an optional `fallback` asset (PNG of the same markup) to vector nodes. 1.4 adds optional `truncate` (one line ending in "…" at its bounds) to text nodes. 1.5 adds optional `ignore` to every node (it matched a capture `ignore` selector: drift compares only its bounds) and the diagnostic code `IGNORE_SELECTOR_UNUSED`.
 
 The IR is **independent of React, CSS and Figma**. It describes boxes, text and vectors with *verified* layout. CSS facts (margins, `display`, `justify-content: space-evenly`, …) live only in the capture snapshot. Any target that understands stacks, grids and absolute positioning can consume the IR, Figma or otherwise.
 

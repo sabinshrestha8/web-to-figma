@@ -4,7 +4,7 @@
   "properties": {
     "schemaVersion": {
       "type": "string",
-      "const": "1.4"
+      "const": "1.5"
     },
     "generator": {
       "type": "object",
@@ -147,6 +147,7 @@
               "PAGE_REDIRECTED",
               "EMPTY_CAPTURE",
               "RASTERIZED",
+              "IGNORE_SELECTOR_UNUSED",
               "LAYOUT_ABSOLUTE_FALLBACK",
               "SCROLL_CONTAINER_EXPANDED"
             ]
@@ -457,6 +458,9 @@
             "tag",
             "selector"
           ]
+        },
+        "ignore": {
+          "type": "boolean"
         },
         "type": {
           "type": "string",
@@ -1313,6 +1317,9 @@
                       "selector"
                     ]
                   },
+                  "ignore": {
+                    "type": "boolean"
+                  },
                   "type": {
                     "type": "string",
                     "const": "text"
@@ -1734,6 +1741,9 @@
                       "tag",
                       "selector"
                     ]
+                  },
+                  "ignore": {
+                    "type": "boolean"
                   },
                   "type": {
                     "type": "string",

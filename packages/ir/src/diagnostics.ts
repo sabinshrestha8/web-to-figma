@@ -27,6 +27,7 @@ export const DIAGNOSTIC_CODES = {
   PAGE_REDIRECTED: "warning",
   EMPTY_CAPTURE: "warning",
   RASTERIZED: "warning",
+  IGNORE_SELECTOR_UNUSED: "warning",
   LAYOUT_ABSOLUTE_FALLBACK: "info",
   SCROLL_CONTAINER_EXPANDED: "info",
 } as const satisfies Record<string, Severity>;
