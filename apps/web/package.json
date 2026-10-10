@@ -1,0 +1,28 @@
+{
+  "name": "@w2f/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -p 4317 -H 127.0.0.1",
+    "build": "next build",
+    "start": "next start -p 4317 -H 127.0.0.1",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@w2f/capture": "workspace:*",
+    "@w2f/ir": "workspace:*",
+    "@w2f/preview": "workspace:*",
+    "next": "16.4.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "20.19.43",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "tailwindcss": "4.3.3"
+  }
+}

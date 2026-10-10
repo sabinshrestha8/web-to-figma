@@ -20,7 +20,8 @@
     "drift:run": "tsx packages/capture/src/drift-run-cli.ts",
     "w2f:login": "tsx packages/capture/src/login-cli.ts",
     "browsers": "pnpm --filter @w2f/capture exec playwright install chromium",
-    "plugin:build": "pnpm --filter @w2f/figma-plugin build"
+    "plugin:build": "pnpm --filter @w2f/figma-plugin build",
+    "web": "pnpm --filter @w2f/web dev"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
