@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 import type { JSHandle, Page } from "playwright";
@@ -6,9 +8,31 @@ import type { JSHandle, Page } from "playwright";
 // `keepNames` helpers, so the page only ever receives this self-contained IIFE.
 let source: Promise<string> | undefined;
 
+/**
+ * The collector entry. Plain runtimes (CLI, tests) resolve it next to this module, but a
+ * bundler (Next.js routes) rewrites import.meta.url to the build output — and even statically
+ * evaluates require.resolve, so that can't anchor it either. The workspace layout reached
+ * from the server's working directory is opaque to static analysis, so it works in both.
+ * (The server must start from its package dir, which `pnpm --filter @w2f/web` guarantees.)
+ */
+function collectorEntry(): string {
+  const fromWorkspace = join(
+    process.cwd(),
+    "..",
+    "..",
+    "packages",
+    "capture",
+    "src",
+    "collector",
+    "index.ts",
+  );
+  if (existsSync(fromWorkspace)) return fromWorkspace;
+  return fileURLToPath(new URL("./collector/index.ts", import.meta.url));
+}
+
 function collectorSource(): Promise<string> {
   source ??= build({
-    entryPoints: [fileURLToPath(new URL("./collector/index.ts", import.meta.url))],
+    entryPoints: [collectorEntry()],
     bundle: true,
     format: "iife",
     globalName: "__w2f",
