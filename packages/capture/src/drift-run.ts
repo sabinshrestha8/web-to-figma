@@ -1,6 +1,6 @@
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
-import { type DriftReport, diffCaptures } from "@w2f/convert";
+import { type DriftReport, diffCaptures, ignoredRects } from "@w2f/convert";
 import { type Bundle, type Diagnostic, parseBundle } from "@w2f/ir";
 import { z } from "zod";
 import { renderDriftHtml } from "./drift-html.ts";
@@ -27,6 +27,8 @@ const Page = z.strictObject({
   storageState: z.string().optional(),
   waitFor: z.array(z.string().trim().min(1).max(500)).max(10).optional(),
   extraSettleMs: z.number().int().min(0).max(5000).optional(),
+  /** CSS selectors of live content (clocks, charts): only their position and size are compared. */
+  ignore: z.array(z.string().trim().min(1).max(500)).max(50).optional(),
   figma: z.strictObject({ file: z.string().min(1), node: z.string().min(1) }).optional(),
   ...Thresholds,
 });
@@ -62,6 +64,8 @@ export interface PageResult {
   diagnostics: Diagnostic[];
   drift?: DriftReport;
   pixelPercent?: number;
+  /** Ignored regions painted out of the pixel diff (both captures). */
+  masked?: number;
   figma?: DriftReport | { skipped: string };
   /** Thresholds this page went over. */
   over: string[];
@@ -124,6 +128,7 @@ async function runPage(
     ...(page.storageState ? { storageState: loadStorageState(resolve(dirs.config, page.storageState)) } : {}),
     ...(page.waitFor?.length ? { waitForSelectors: page.waitFor } : {}),
     ...(page.extraSettleMs !== undefined ? { extraSettleMs: page.extraSettleMs } : {}),
+    ...(page.ignore?.length ? { ignoreSelectors: page.ignore } : {}),
   });
   const diagnostics = captured.ok ? captured.value.ir.diagnostics : captured.diagnostics;
   result.diagnostics = diagnostics.filter((d) => d.severity !== "info");
@@ -153,9 +158,12 @@ async function runPage(
       return result;
     }
     result.drift = diffCaptures(base.root, cap.root);
-    const pixels = await comparePngs(screenshot(baseline), shot);
+    // The page's screenshot is in CSS px (`scale: "css"`).
+    const mask = { rects: [...ignoredRects(base.root), ...ignoredRects(cap.root)], scale: 1 };
+    const pixels = await comparePngs(screenshot(baseline), shot, undefined, mask);
     writeFileSync(join(dir, "diff.png"), pixels.diff);
     result.pixelPercent = Math.round(pixels.mismatch * 10000) / 100;
+    result.masked = mask.rects.length;
     result.status = "compared";
   }
 

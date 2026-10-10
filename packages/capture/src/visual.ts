@@ -30,11 +30,20 @@ async function offlinePage(browser: Browser) {
  * Pixel diff of two PNGs, decoded and compared by canvas in Chromium (no image dependency).
  * `tolerance` is per channel, 0–255: anti-aliasing noise below it is not a mismatch.
  */
-export async function comparePngs(a: Buffer, b: Buffer, tolerance = 32): Promise<DiffResult> {
+export async function comparePngs(
+  a: Buffer,
+  b: Buffer,
+  tolerance = 32,
+  /** CSS-px rects painted out of both images first (live content); `scale` = image px per CSS px. */
+  mask: { rects: { x: number; y: number; width: number; height: number }[]; scale: number } = {
+    rects: [],
+    scale: 1,
+  },
+): Promise<DiffResult> {
   const { context, page } = await offlinePage(await getBrowser());
   try {
     const out = await page.evaluate(
-      async ({ a, b, tolerance }) => {
+      async ({ a, b, tolerance, mask }) => {
         const decode = async (b64: string) => {
           const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
           return createImageBitmap(new Blob([bytes], { type: "image/png" }));
@@ -48,6 +57,9 @@ export async function comparePngs(a: Buffer, b: Buffer, tolerance = 32): Promise
           ctx.fillStyle = "#fff";
           ctx.fillRect(0, 0, width, height);
           ctx.drawImage(img, 0, 0);
+          ctx.fillStyle = "#808080";
+          for (const r of mask.rects)
+            ctx.fillRect(r.x * mask.scale, r.y * mask.scale, r.width * mask.scale, r.height * mask.scale);
           return ctx.getImageData(0, 0, width, height);
         };
         const pa = pixels(ia).data;
@@ -81,7 +93,7 @@ export async function comparePngs(a: Buffer, b: Buffer, tolerance = 32): Promise
           diff: btoa(s),
         };
       },
-      { a: a.toString("base64"), b: b.toString("base64"), tolerance },
+      { a: a.toString("base64"), b: b.toString("base64"), tolerance, mask },
     );
     return { ...out, diff: Buffer.from(out.diff, "base64") };
   } finally {

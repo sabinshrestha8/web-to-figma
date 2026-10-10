@@ -91,7 +91,7 @@ function section(r: PageResult, history: HistoryRow[]): string {
   }
   if (r.drift) {
     parts.push(
-      `<h3>Against baseline: ${r.drift.entries.length} change(s) across ${r.drift.compared} node(s), ${r.pixelPercent}% pixels differ <a href="${esc(r.name)}/diff.png">diff</a></h3>`,
+      `<h3>Against baseline: ${r.drift.entries.length} change(s) across ${r.drift.compared} node(s), ${r.pixelPercent}% pixels differ${r.masked ? ` (${r.masked} ignored region(s) masked)` : ""} <a href="${esc(r.name)}/diff.png">diff</a></h3>`,
     );
     parts.push(entries(r.drift, r, "baseline.png", { n: 0 }));
   }
