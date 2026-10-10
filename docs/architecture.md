@@ -92,7 +92,7 @@ A CLI pipeline plus the Figma plugin sandbox. There's no server, database, queue
 | `packages/preview` | browser/Node | `renderIRToHtml(ir)`, used by the visual regression tests (a future web UI would reuse it for previews) | Phase 3 |
 | `apps/web` | Node + browser | UI, API, job store | Deferred to 7b; absent in V1 |
 | `apps/figma-plugin` | Figma | Bundle import, fonts, node building, post-build checks | Phase 2+ |
-| `fixtures/site` | Node | Next.js fixture app (10 pages + hostile pages) with expectations | Phase 2+ |
+| `fixtures/site` | Node | Next.js fixture app (feature, layout, image, live and hostile pages) with expectations | Phase 2+ |
 
 Packages are created in the phase that first needs them. Nothing is scaffolded ahead of time.
 
@@ -128,7 +128,7 @@ Packages are created in the phase that first needs them. Nothing is scaffolded a
 | Concern | Choice | Not chosen |
 |---|---|---|
 | Language | TypeScript 7 strict (`noUncheckedIndexedAccess`) | — |
-| Runtime | Node ≥ 20.19 (CI: Node 24 LTS) | — |
+| Runtime | Node ≥ 20.19 (CI: Node 20) | — |
 | Monorepo | pnpm workspaces | Turborepo/Nx (add when build time hurts) |
 | Web | Deferred to 7b (V1 is CLI-only); when built: Next.js App Router, Node runtime, `serverExternalPackages: ['playwright']` | Separate Express server |
 | Browser automation | Playwright, Chromium only | Puppeteer |
@@ -171,7 +171,7 @@ Each package boundary is a **runtime** boundary: page, Node, pure, or Figma. `co
 | Stacking contexts misordered | M | M | Per-parent z-order, a hostile fixture |
 | Figma SVG/image import limits | M | L | Raster crop fallback; pre-transcode and downscale |
 | Figma `GRID` API typings evolve | M | L | Verify at Phase 6 start; absolute fallback |
-| Local server abused (CSRF/rebinding) | L | H | Host/Origin guard, JSON only, 127.0.0.1 bind |
+| Local server abused (CSRF/rebinding) | L | H | Deferred to 7b (no server in V1); when built: Host/Origin guard, JSON only, 127.0.0.1 bind |
 | Huge pages slow Figma | M | M | Caps, flatten, chunked build |
 | Playwright bundled into Next routes | L | M | Deferred to 7b; when built: `serverExternalPackages`, browser singleton on `globalThis` |
 | Competing product exists | — | H | Product decision; flagged above |
