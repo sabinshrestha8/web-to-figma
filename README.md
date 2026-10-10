@@ -106,6 +106,7 @@ Results land in `.data/drift/`: `report.html` (changes grouped by kind with base
 | [security.md](docs/security.md) | Threat model, limits, performance |
 | [diagnostics.md](docs/diagnostics.md) | Error/warning codes, observability |
 | [testing.md](docs/testing.md) | Test levels, fixtures, visual regression |
-| [api.md](docs/api.md) | Local HTTP API |
+| [api.md](docs/api.md) | Local HTTP API (deferred design, not in V1) |
+| [release.md](docs/release.md) | V1 release checklist, fresh-machine install, plugin publish |
 | [development.md](docs/development.md) | Workflow, phase plan, Definition of Done, phase log |
 | [adr/](docs/adr) | Architecture decision records |

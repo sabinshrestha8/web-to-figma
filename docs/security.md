@@ -3,14 +3,14 @@
 ## Threat model (V1 = local tool)
 
 1. The user points the tool at a **hostile page**, which runs arbitrary JS in our Chromium.
-2. **A malicious website the user visits** tries to drive the local app at `127.0.0.1:4317`, via CSRF or DNS rebinding, to make our browser fetch things.
+2. (Deferred to 7b: V1 has no local server.) **A malicious website the user visits** tries to drive the local app at `127.0.0.1:4317`, via CSRF or DNS rebinding, to make our browser fetch things.
 3. A **crafted bundle** is loaded into the Figma plugin.
 
 ## Controls
 
 | Boundary | Control |
 |---|---|
-| Local web app exposure | Bind `127.0.0.1` only. Reject any request whose `Host` isn't `127.0.0.1:PORT` / `localhost:PORT` (defeats DNS rebinding). Reject a non-same-origin `Origin`. API accepts only `application/json` (forces a preflight, which we never grant). |
+| Local web app exposure (deferred to 7b; no server in V1) | Bind `127.0.0.1` only. Reject any request whose `Host` isn't `127.0.0.1:PORT` / `localhost:PORT` (defeats DNS rebinding). Reject a non-same-origin `Origin`. API accepts only `application/json` (forces a preflight, which we never grant). |
 | URL policy (`capture/policy.ts`) | Schemes http/https only. **Always block** link-local `169.254.0.0/16` and `fe80::/10` (cloud metadata), `0.0.0.0/8`, multicast, broadcast. Loopback and private ranges are **allowed in local mode** (that's the use case) behind an `allowPrivateNetworks` flag that hosted mode turns off. Hostnames are resolved and IP encodings normalized (decimal, octal, hex, IPv4-mapped IPv6). |
 | Subrequests and redirects | `context.route("**/*")` checks every request; `routeWebSocket` checks `ws:`. Requests are fetched with `maxRedirects: 0` and **redirects are never handed back to the browser**: Playwright does not route the follow-up request of a fulfilled 3xx (verified: Chromium went straight to the second hop). Subresource hops are followed in the handler, each `Location` checked, max 10, cookies/authorization dropped on cross-origin hops. Main-frame hops are aborted and re-navigated with `page.goto`, so each hop is a fresh routed request and the page keeps its real URL. A blocked main navigation is fatal; a blocked subresource is a warning. Regression test: `fixtures/site/app/hostile/redirect-chain`. |
 | Untrusted page JS | Chromium sandbox **on** (never `--no-sandbox`). A fresh `BrowserContext` per job: no profile, no user cookies, `serviceWorkers: "block"`, `acceptDownloads: false`, permissions denied, dialogs auto-dismissed, popups closed. |

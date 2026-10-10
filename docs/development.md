@@ -9,7 +9,7 @@ pnpm test -- -u      # regenerate docs/ir.schema.json after a schema change
 pnpm format       # Biome format + safe fixes
 ```
 
-Requires Node ≥ 20.19 and pnpm 9. CI uses Node 24.
+Requires Node ≥ 20.19 and pnpm 9. CI uses Node 20 (the supported floor).
 
 ## Coding rules
 

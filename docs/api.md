@@ -1,4 +1,6 @@
-# Local API (`apps/web`, Phase 7)
+# Local API (deferred to Phase 7b; not implemented in V1)
+
+> Design record for the future web UI. Nothing below exists in the code; the V1 interface is the CLI (see the README).
 
 All routes:
 - run in the Node runtime;

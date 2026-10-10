@@ -21,22 +21,19 @@ Every approximation is reported as a diagnostic ([diagnostics.md](diagnostics.md
 
 ## 2. User journey
 
-1. `pnpm start` runs the local web app on `127.0.0.1:4317`.
-2. **New conversion.** Enter a URL or a base URL plus routes. Pick viewports (1440×900, 768×1024, 390×844, or custom).
-3. **Progress.** Stages: queued → loading → settling → extracting → assets → converting → done.
-4. **Results.**
-   - The original screenshot next to the IR preview (the IR rendered back to HTML), with node outlines.
-   - Counts of DOM nodes, IR nodes, assets and fonts.
-   - A diagnostics table you can filter.
-5. **Download** `name.w2f.json`.
-6. **Figma plugin.** Drop in the file. It shows a font report, then builds with a progress bar, then shows the post-build diagnostics.
-7. **Result:** a Section holding one frame per (route × viewport).
+1. **Capture.** `pnpm w2f <url> -v 1440x900 -v 390x844@2 -o page.w2f.json` writes one bundle with one capture per viewport. Behind a login: `pnpm w2f:login <url>` once, then `--storage-state .data/auth.json`.
+2. **Import.** `pnpm plugin:build`, then in Figma load the plugin from `apps/figma-plugin/manifest.json` and drop the bundle onto it. It shows a font report, builds with a progress bar, then shows the post-build diagnostics.
+3. **Result:** a Section holding one frame per capture, each with a hidden, locked **Reference screenshot** to compare against.
+4. **Measure.** Select a built frame, **Export selected frame (PNG)**, then `pnpm compare page.w2f.json export.png`.
+5. **Watch.** List pages in `.data/drift.config.json` and run `pnpm drift:run` on a schedule; it gates on node, pixel and Figma drift.
+
+(A Next.js UI — URL/routes form, progress, IR preview, filterable diagnostics table — is deferred to Phase 7b.)
 
 ## 3. V1 scope matrix
 
 | Area | Supported | Partial (approximated + diagnostic) | Unsupported (diagnostic + fallback) |
 |---|---|---|---|
-| Input | http(s) URL incl. localhost; multiple routes × viewports per job | Pages behind auth (pasted cookie header, local only) | Project-folder mode, file:// |
+| Input | http(s) URL incl. localhost; multiple URLs × viewports per capture | Pages behind auth (saved storage state via `w2f:login`, local only) | Project-folder mode, file:// |
 | Boxes | bg color, opacity, per-corner radius, per-side border width (one color), dashed/dotted, overflow clip, box-shadow (inset, spread), blend modes | Per-side border colors (dominant color), elliptical radii (min), `outline` | `border-image`, `mask`, `clip-path` (→ raster) |
 | Paint | solid, linear-gradient, multiple bg layers | radial/conic gradient, `background-size/position` | repeating gradients (→ first layer) |
 | Layout | flex row/col incl. reverse, gap, padding, justify start/center/end/space-between, align start/center/end/stretch, flex-grow → fill, wrap; absolute/fixed children; uniform block stacking | CSS Grid → Figma `GRID` when tracks are explicit/uniform; `space-around/evenly` and margins when a measured gap verifies | Anything failing verification → absolute positioning |
@@ -58,17 +55,14 @@ Every approximation is reported as a diagnostic ([diagnostics.md](diagnostics.md
 
 ## 5. System architecture
 
-A modular monolith with two runtimes: the local Node app and the Figma plugin sandbox. There's no database, queue or Redis.
-- Jobs live in an in-memory `Map`.
-- Artifacts live under `.data/jobs/<id>/` with a 24h sweep at startup.
-- Concurrency is capped by a small semaphore (2 jobs).
+A CLI pipeline plus the Figma plugin sandbox. There's no server, database, queue or Redis: every command (`w2f`, `w2f:login`, `compare`, `drift`, `figma-drift`, `drift:run`) runs once and exits. Bundles, baselines and reports live under the gitignored `.data/`.
+(A Next.js web app with an in-process job runner is deferred to Phase 7b.)
 
 ```
- ┌──────────────── Local machine ────────────────────────────────────────┐
- │  apps/web (Next.js, 127.0.0.1 only)                                   │
- │   UI ──POST /api/conversions──► job runner (in-process, semaphore=2)  │
- │                     packages/capture (Node)                           │
- │   URL policy ─► Playwright Chromium (1 browser, 1 context per job)    │
+┌──────────────── Local machine ────────────────────────────────────────┐
+│  pnpm w2f <url> -v … -o page.w2f.json (Node CLI)                       │
+│                     packages/capture (Node)                           │
+│   URL policy ─► Playwright Chromium (1 browser, 1 context per capture) │
  │                   │ page.route(): policy check + asset byte capture   │
  │                   │ settle: fonts.ready, scroll for lazy, reducedMotion│
  │                   │ page.evaluate(collector IIFE) ──► RawSnapshot      │
@@ -76,7 +70,7 @@ A modular monolith with two runtimes: the local Node app and the Figma plugin sa
  │                     packages/convert (pure: no browser, no Figma)     │
  │   RawSnapshot ─► normalize ─► flatten ─► inferLayout(verify) ─► IR    │
  │                     packages/ir (zod schema, version, migrate)        │
- │   IR + assets ─► Bundle (.w2f.json) ─► download                        │
+ │   IR + assets ─► Bundle (.w2f.json) ─► `.data/`                             │
  └───────────────────────────────────────────────────────────────────────┘
                         │ file (drag & drop) — no network in V1
  ┌──────────────── Figma ────────────────────────────────────────────────┐
@@ -95,8 +89,8 @@ A modular monolith with two runtimes: the local Node app and the Figma plugin sa
 | `packages/capture` | Node | URL policy, Playwright lifecycle, settle, asset capture/transcode, collector injection, screenshot, dev CLI | Phase 2 |
 | `packages/capture/collector` | page | Zero-dependency DOM walker bundled to an IIFE → `RawSnapshot`. Reusable by a future browser extension | Phase 2 |
 | `packages/convert` | anywhere | Pure: `snapshotToIR`, CSS parsers, `flatten`, layout inference + Auto Layout simulator, z-order | Phase 2+ |
-| `packages/preview` | browser/Node | `renderIRToHtml(ir)`, used by the web preview and the visual regression tests | Phase 3 |
-| `apps/web` | Node + browser | UI, API, job store | Phase 7b |
+| `packages/preview` | browser/Node | `renderIRToHtml(ir)`, used by the visual regression tests (a future web UI would reuse it for previews) | Phase 3 |
+| `apps/web` | Node + browser | UI, API, job store | Deferred to 7b; absent in V1 |
 | `apps/figma-plugin` | Figma | Bundle import, fonts, node building, post-build checks | Phase 2+ |
 | `fixtures/site` | Node | Next.js fixture app (10 pages + hostile pages) with expectations | Phase 2+ |
 
@@ -136,7 +130,7 @@ Packages are created in the phase that first needs them. Nothing is scaffolded a
 | Language | TypeScript 7 strict (`noUncheckedIndexedAccess`) | — |
 | Runtime | Node ≥ 20.19 (CI: Node 24 LTS) | — |
 | Monorepo | pnpm workspaces | Turborepo/Nx (add when build time hurts) |
-| Web | Next.js App Router, Node runtime, `serverExternalPackages: ['playwright']` | Separate Express server |
+| Web | Deferred to 7b (V1 is CLI-only); when built: Next.js App Router, Node runtime, `serverExternalPackages: ['playwright']` | Separate Express server |
 | Browser automation | Playwright, Chromium only | Puppeteer |
 | Schema | Zod 4 (+ `z.toJSONSchema`) | io-ts, ajv-first |
 | Bundling (collector, plugin) | esbuild | webpack, vite |
@@ -153,7 +147,7 @@ Vitest is pinned to 4.x because Vitest 5 requires Node ≥ 22.12. We'll move to 
 
 ```
 web-to-figma/
-  apps/web/              Next.js UI + API                    (Phase 7b)
+  apps/web/              Next.js UI + API                    (deferred to 7b; absent in V1)
   apps/figma-plugin/     manifest, code.ts, ui, map/*.ts     (Phase 2)
   packages/ir/           schema, diagnostics, migrations, bundle, validate
   packages/capture/      browser, policy, settle, assets, collector, cli
@@ -179,7 +173,7 @@ Each package boundary is a **runtime** boundary: page, Node, pure, or Figma. `co
 | Figma `GRID` API typings evolve | M | L | Verify at Phase 6 start; absolute fallback |
 | Local server abused (CSRF/rebinding) | L | H | Host/Origin guard, JSON only, 127.0.0.1 bind |
 | Huge pages slow Figma | M | M | Caps, flatten, chunked build |
-| Playwright bundled into Next routes | L | M | `serverExternalPackages`, browser singleton on `globalThis` |
+| Playwright bundled into Next routes | L | M | Deferred to 7b; when built: `serverExternalPackages`, browser singleton on `globalThis` |
 | Competing product exists | — | H | Product decision; flagged above |
 
 ## 12. V1 limitations
