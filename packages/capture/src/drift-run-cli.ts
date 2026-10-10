@@ -5,6 +5,7 @@
  * of a page sets its baseline; --accept makes this run's captures the baselines.
  * Exit 0 within thresholds, 1 when a page failed or went over one, 2 on bad arguments or config.
  */
+import { existsSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { closeBrowser } from "./browser.ts";
 import { runDrift } from "./drift-run.ts";
@@ -24,6 +25,16 @@ async function main(): Promise<number> {
     return 0;
   }
   const config = inPath(positionals[0] ?? "drift.config.json");
+  if (!existsSync(config)) {
+    console.error(
+      `error: no drift config at ${config}. Create .data/drift.config.json listing the pages to watch:
+` +
+        `  { "pages": [{ "name": "home", "url": "http://localhost:3000/" }] }
+` +
+        "(README: Watch pages for drift)",
+    );
+    return 2;
+  }
   const { results, reportPath, ok } = await runDrift(config, {
     accept: values.accept,
     only: values.page ?? [],
