@@ -29,13 +29,14 @@ export function effects(list: readonly IREffect[]): Effect[] {
   });
 }
 
-/** CSS borders sit inside the border box, so strokes are INSIDE. Dash lengths follow Chromium (3× width dashes). */
+/** CSS borders sit inside the border box (INSIDE); outlines draw outside it (OUTSIDE). Dash lengths follow Chromium (3× width dashes). */
+const ALIGN = { inside: "INSIDE", outside: "OUTSIDE" } as const;
 export function strokeProps(s: Stroke) {
   const { top, right, bottom, left } = s.weights;
   const width = Math.max(top, right, bottom, left);
   return {
     strokes: [solid(s.color)],
-    strokeAlign: "INSIDE" as const,
+    strokeAlign: s.align === "outside" ? ALIGN.outside : ALIGN.inside,
     weights: {
       strokeTopWeight: top,
       strokeRightWeight: right,

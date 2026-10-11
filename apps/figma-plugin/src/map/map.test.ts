@@ -241,6 +241,13 @@ describe("box", () => {
       dashPattern: [],
       weights: { strokeBottomWeight: 4, strokeLeftWeight: 1 },
     });
+    const outline = strokeProps({
+      color,
+      weights: { top: 2, right: 2, bottom: 2, left: 2 },
+      style: "solid",
+      align: "outside",
+    });
+    expect(outline).toMatchObject({ strokeAlign: "OUTSIDE", uniform: 2 });
   });
 
   it("maps blend modes to Figma names", () => {

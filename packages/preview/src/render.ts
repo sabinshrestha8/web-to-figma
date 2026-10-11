@@ -142,19 +142,33 @@ function box(b: BoxNode, origin: { x: number; y: number }, assets: Record<string
   // The stroke is its own layer so it doesn't shift the absolutely positioned children (a CSS
   // border would offset their containing block). Below the children like a CSS border; above them
   // when the box clips, since CSS then clips children inside the border and they never cover it.
-  const stroke = b.stroke
-    ? `<div style="${esc(
-        [
-          "position:absolute",
-          "inset:0",
-          "box-sizing:border-box",
-          "border-radius:inherit",
-          `border-style:${b.stroke.style}`,
-          `border-color:${rgba(b.stroke.color)}`,
-          `border-width:${b.stroke.weights.top}px ${b.stroke.weights.right}px ${b.stroke.weights.bottom}px ${b.stroke.weights.left}px`,
-        ].join(";"),
-      )}"></div>`
-    : "";
+  // An outside stroke (a CSS outline) renders as a real outline, which is exactly what it is.
+  const stroke =
+    b.stroke && b.stroke.align === "outside"
+      ? `<div style="${esc(
+          [
+            "position:absolute",
+            "inset:0",
+            "box-sizing:border-box",
+            "border-radius:inherit",
+            `outline-style:${b.stroke.style}`,
+            `outline-color:${rgba(b.stroke.color)}`,
+            `outline-width:${Math.max(b.stroke.weights.top, b.stroke.weights.right, b.stroke.weights.bottom, b.stroke.weights.left)}px`,
+          ].join(";"),
+        )}"></div>`
+      : b.stroke
+        ? `<div style="${esc(
+            [
+              "position:absolute",
+              "inset:0",
+              "box-sizing:border-box",
+              "border-radius:inherit",
+              `border-style:${b.stroke.style}`,
+              `border-color:${rgba(b.stroke.color)}`,
+              `border-width:${b.stroke.weights.top}px ${b.stroke.weights.right}px ${b.stroke.weights.bottom}px ${b.stroke.weights.left}px`,
+            ].join(";"),
+          )}"></div>`
+        : "";
   const kids = b.children.map((c) => node(c, { x: b.bounds.x, y: b.bounds.y }, assets)).join("");
   const inner = b.clip ? kids + stroke : stroke + kids;
   return `<div data-id="${esc(b.id)}" style="${esc(css.filter(Boolean).join(";"))}">${inner}</div>`;
