@@ -180,6 +180,18 @@ export function snapshotToIR(raw: RawSnapshot, opts: ConvertOptions): ConvertRes
   const canvasFill = htmlFill.length ? htmlFill : body ? solid(body.style["background-color"]) : [];
 
   const kidsOf = (el: RawElement) => children.get(el.id) ?? [];
+  /** A fieldset whose legend reserves a notch in the top border (MUI outlined inputs). */
+  const notched = (el: RawElement): boolean => {
+    if (el.tag !== "fieldset") return false;
+    const stack = [...kidsOf(el)];
+    while (stack.length > 0) {
+      const kid = stack.pop();
+      if (kid === undefined || kid.kind !== "element") continue;
+      if (kid.tag === "legend" && kid.rect.width > 0) return true;
+      stack.push(...kidsOf(kid));
+    }
+    return false;
+  };
   const decorationOf = decorationResolver(elements);
   const pendingLayouts = new Map<number, Layout>();
   const convertAll = (parent: RawElement): Node[] => {
@@ -251,6 +263,14 @@ export function snapshotToIR(raw: RawSnapshot, opts: ConvertOptions): ConvertRes
       : boxStyle(n, ctx, { leaf: kids.length === 0, visible, withColor: !(bodyPropagates && n === body) });
     const paints = style.fills.length > 0 || style.stroke !== undefined || style.effects.length > 0;
     if (kids.length === 0 && !paints) return null;
+    if (!island && n.tag === "fieldset" && (style.stroke?.weights.top ?? 0) > 0 && notched(n)) {
+      report.add(
+        "NOTCHED_OUTLINE",
+        "fieldset with a notched legend: Figma has no border gap, so the top border draws through the label",
+        nodeId,
+        "approximated",
+      );
+    }
 
     const box: BoxNode = {
       id: nodeId,

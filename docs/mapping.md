@@ -73,7 +73,7 @@ How it works:
 |---|---|---|
 | rect + scroll offset | `bounds` | Rotated **leaves**: size from `offsetWidth/Height` (scale baked in), centered on the measured rect, `rotation` from `rotate` · `scale` · `transform`. Rotated containers are drawn unrotated. Skew, mirroring and 3D → `UNSUPPORTED_CSS` |
 | `background-color`, `background-image` | `fills[]` | CSS lists the top layer first; the IR stores bottom first. Linear and radial gradients map directly; `repeating-*` is approximated; conic and other functions → `UNSUPPORTED_CSS`; `url()` → image paint (below) |
-| `border-*-width/style/color` | `stroke` | Color of the widest side; mixed colors → `BORDER_COLORS_MIXED`; double/groove/ridge/inset/outset → solid + `UNSUPPORTED_CSS`; `outline` → `UNSUPPORTED_CSS` |
+| `border-*-width/style/color` | `stroke` | Color of the widest side; mixed colors → `BORDER_COLORS_MIXED`; double/groove/ridge/inset/outset → solid + `UNSUPPORTED_CSS`; `outline` → `UNSUPPORTED_CSS`; a `fieldset` with a legend reserves a notch in the top border for its label, which Figma can't gap → `NOTCHED_OUTLINE` |
 | `border-*-radius` | `radius` | `%` resolved against the box; CSS overlap scaling applied; elliptical → smaller radius + `UNSUPPORTED_CSS` |
 | `box-shadow` | `effects[]` drop/inner shadow | Bottom-most first (CSS lists the top shadow first). Transparent or zero shadows are dropped |
 | `text-shadow` | text node `effects[]` drop shadows | Same parser as box-shadow, without inset/spread. An inline element with a different text-shadow keeps its own text node |

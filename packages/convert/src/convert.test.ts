@@ -361,6 +361,30 @@ describe("snapshotToIR box fidelity", () => {
     expect(diagnostics.map((d) => d.code)).toEqual(["NEGATIVE_ZINDEX"]);
   });
 
+  it("reports a notched fieldset legend (top border draws through the label in Figma)", () => {
+    const bordered = (top: string) => ({
+      ...bg("rgb(255, 255, 255)"),
+      ...Object.fromEntries(
+        ["top", "right", "bottom", "left"].flatMap((s) => [
+          [`border-${s}-width`, "1px"],
+          [`border-${s}-style`, s === "top" ? top : "solid"],
+        ]),
+      ),
+    });
+    const fieldset = (bodyId: number, legendWidth: number | null, top = "solid") => {
+      const fs = el(bodyId, "fieldset", { x: 0, y: 0, width: 100, height: 40 }, bordered(top));
+      return legendWidth === null
+        ? [fs]
+        : [fs, el(fs.id, "legend", { x: 8, y: 0, width: legendWidth, height: 11 }, {})];
+    };
+    const snap = (legendWidth: number | null, top = "solid") =>
+      page((body) => fieldset(body.id, legendWidth, top));
+    expect(convert(snap(60)).diagnostics.map((d) => d.code)).toEqual(["NOTCHED_OUTLINE"]);
+    expect(convert(snap(null)).diagnostics).toEqual([]);
+    expect(convert(snap(0)).diagnostics).toEqual([]);
+    expect(convert(snap(60, "none")).diagnostics).toEqual([]);
+  });
+
   it("flattens paint-less wrappers around a same-sized child, keeping the wrapper's positioning", () => {
     const snap = page((body) => {
       const wrap = el(body.id, "div", { x: 10, y: 10, width: 100, height: 50 }, { position: "absolute" });
