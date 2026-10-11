@@ -233,6 +233,10 @@ V1 is the CLI tool plus the Figma plugin. The web UI stays deferred (7b).
 - **Cleanup:** removed the ignored root `drift.md` (a real-app report; testing.md says never commit those).
 - **Limit:** Playwright browsers are shared via the OS cache, so a same-machine clone doesn't re-prove the browser download; everything else was genuinely fresh.
 
+### Hotfix: notched fieldset outlines (2026-10-11)
+
+From a production bundle (MUI dashboard): floating labels were all correctly sized, positioned and absolute, but every outlined select draws its top border through the label in Figma — the browser cuts a notch (fieldset legend) that Figma has no primitive for. New `NOTCHED_OUTLINE` info diagnostic (fieldset + top border + nonzero legend), unit-tested and mutation-checked, plus a `selects` fixture asserting it end to end. Pixels unchanged (nothing to map it to); mapping.md documents the limit.
+
 ### Phase 7b: Web app UX (2026-10-10)
 
 Un-deferred: V1 users asked whether every flow needs the terminal, so the browser UI now exists for public URLs (login stays in the CLI).

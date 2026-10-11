@@ -342,6 +342,16 @@ describe("layout fixtures → IR", async () => {
     expect(byId(root, "mobile-cards").layout).toMatchObject({ mode: "stack", direction: "vertical" });
   });
 
+  it("keeps the selects floating label absolute and reports its notched outline", async () => {
+    const b = await bundle("selects");
+    const root = b.ir.captures[0]!.root;
+    const label = walk(root)
+      .filter((n): n is TextNode => n.type === "text")
+      .find((t) => t.characters === "Choose Type");
+    expect(label?.position).toBe("absolute");
+    expect(b.ir.diagnostics.map((d) => d.code)).toContain("NOTCHED_OUTLINE");
+  });
+
   it("keeps nested-complex overlays absolute in paint order", async () => {
     const b = await bundle("nested-complex");
     const root = b.ir.captures[0]!.root;
@@ -371,6 +381,7 @@ describe("visual diff: original page vs renderIRToHtml(IR)", () => {
     ["dashboard", desktop],
     ["mobile", mobile],
     ["nested-complex", desktop],
+    ["selects", desktop],
   ] as const)("%s stays within the diff budget", async (route, viewport) => {
     const b = await bundle(route, viewport);
     const capture = b.ir.captures[0]!;
