@@ -4,7 +4,7 @@
   "properties": {
     "schemaVersion": {
       "type": "string",
-      "const": "1.5"
+      "const": "1.6"
     },
     "generator": {
       "type": "object",
@@ -843,6 +843,13 @@
                 "solid",
                 "dashed",
                 "dotted"
+              ]
+            },
+            "align": {
+              "type": "string",
+              "enum": [
+                "inside",
+                "outside"
               ]
             }
           },

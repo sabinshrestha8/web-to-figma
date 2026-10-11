@@ -2,7 +2,7 @@ import { z } from "zod";
 import { Diagnostic } from "./diagnostics.ts";
 
 /** Current IR version. Minor = additive optional fields; major = breaking, needs a migration. */
-export const SCHEMA_VERSION = "1.5";
+export const SCHEMA_VERSION = "1.6";
 // 1.1: optional `tileSize` on image paints.
 // 1.2: diagnostic code SCROLL_CONTAINER_EXPANDED.
 // 1.3: optional `crop` on image paints, optional `fallback` raster on vector nodes.
@@ -57,6 +57,8 @@ export const Stroke = z.object({
   color: RGBA,
   weights: Sides,
   style: z.enum(["solid", "dashed", "dotted"]),
+  /** CSS borders sit inside; outlines draw outside. Absent (pre-1.6) means inside. */
+  align: z.enum(["inside", "outside"]).optional(),
 });
 export type Stroke = z.infer<typeof Stroke>;
 
