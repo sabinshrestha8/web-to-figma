@@ -107,8 +107,12 @@ export function createStore(execute: Execute = convertUrls): Store {
   };
 }
 
-/** The server's store (module singleton, one per process). */
-export const store = createStore();
+/** The server's store: one per process, shared even if the bundler instantiates this
+ * module twice or hot-reloads it (dev edits used to wipe running jobs). A full restart
+ * still forgets them — the poll error says so. */
+const g = globalThis as { __w2fStore?: Store };
+if (g.__w2fStore === undefined) g.__w2fStore = createStore();
+export const store: Store = g.__w2fStore;
 
 async function run(rec: JobRecord, input: NormalizedInput, execute: Execute, total: number): Promise<void> {
   try {

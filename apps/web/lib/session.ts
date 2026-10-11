@@ -89,5 +89,7 @@ export function createLoginStore(save: SaveLogin = (url, out) => saveLogin(url, 
   };
 }
 
-/** The server's login store (module singleton, one per process). */
-export const loginStore = createLoginStore();
+/** The server's login store: same shared-singleton treatment as the job store. */
+const g = globalThis as { __w2fLoginStore?: LoginStore };
+if (g.__w2fLoginStore === undefined) g.__w2fLoginStore = createLoginStore();
+export const loginStore: LoginStore = g.__w2fLoginStore;

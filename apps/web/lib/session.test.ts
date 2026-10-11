@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { authPath, createLoginStore, sessionInfo } from "./session.ts";
+import { authPath, createLoginStore, loginStore, sessionInfo } from "./session.ts";
 import { dataDir } from "./sweep.ts";
 
 afterEach(() => {
@@ -36,6 +36,9 @@ const seedSession = () =>
   );
 
 describe("login store", () => {
+  it("shares one store through globalThis, so dev reloads keep open logins", () => {
+    expect((globalThis as { __w2fLoginStore?: unknown }).__w2fLoginStore).toBe(loginStore);
+  });
   it("opens a login, reports done, and starts again after", async () => {
     useTmpDataDir();
     let resolve = () => {};

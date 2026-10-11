@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, utimesSync, writeFileSync } from "n
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createStore } from "./jobs.ts";
+import { createStore, store } from "./jobs.ts";
 import { dataDir, sweepJobs } from "./sweep.ts";
 
 afterEach(() => {
@@ -17,6 +17,9 @@ const input = { urls: ["http://127.0.0.1:4400/landing"], viewports: [{ width: 14
 const never = () => new Promise<never>(() => {});
 
 describe("job admission", () => {
+  it("shares one store through globalThis, so dev reloads keep running jobs", () => {
+    expect((globalThis as { __w2fStore?: unknown }).__w2fStore).toBe(store);
+  });
   it("runs two jobs, rejects the third with null (→ 429)", () => {
     useTmpDataDir();
     const store = createStore(never);
