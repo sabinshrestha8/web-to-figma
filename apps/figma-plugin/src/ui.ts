@@ -1,6 +1,7 @@
 import { type Diagnostic, parseBundle } from "@w2f/ir";
 import type { FontReportEntry } from "./map/fonts.ts";
 import type { ToCode, ToUI } from "./messages.ts";
+import { unknownDiagnosticCodes } from "./unknown-codes.ts";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const drop = $<HTMLLabelElement>("drop");
@@ -76,7 +77,22 @@ async function load(file: File) {
     ]);
   }
   const bundle = parseBundle(json);
-  if (!bundle.ok) return show(`${file.name} can't be imported.`, bundle.diagnostics);
+  if (!bundle.ok) {
+    const unknown = unknownDiagnosticCodes(json);
+    if (unknown.length > 0)
+      return show(
+        `${file.name} uses newer diagnostics (${unknown.join(", ")}) than this plugin build knows.`,
+        [
+          {
+            code: "BUNDLE_INVALID",
+            severity: "fatal",
+            message:
+              "Rebuild the plugin from the same checkout that captured the bundle: pnpm plugin:build, then re-import apps/figma-plugin/manifest.json and drop the bundle again.",
+          },
+        ],
+      );
+    return show(`${file.name} can't be imported.`, bundle.diagnostics);
+  }
   const { ir, assetData } = bundle.value;
   const assets = Object.fromEntries(Object.entries(assetData).map(([id, b64]) => [id, decode(b64)]));
   captureDiagnostics = ir.diagnostics;

@@ -52,7 +52,7 @@ To capture a logged-in page from the UI instead, open the **Saved session** card
 
 ### Import into Figma (desktop app)
 
-1. `pnpm plugin:build`
+1. `pnpm plugin:build` — again after every pull: a bundle only imports into a plugin built from the same checkout.
 2. In Figma: **Plugins → Development → Import plugin from manifest…**, then pick `apps/figma-plugin/manifest.json`.
 3. Run **Web to Figma (dev)** and drop the `.w2f.json` file onto it.
 
