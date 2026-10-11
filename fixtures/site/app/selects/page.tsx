@@ -51,6 +51,16 @@ export default function Selects() {
           </legend>
         </fieldset>
       </div>
+
+      <div className="mui-field">
+        <div
+          data-testid="select-outline"
+          className="mui-box"
+          style={{ border: "none", outline: "2px solid rgb(37, 99, 235)", outlineOffset: 0 }}
+        >
+          <span>Outlined control</span>
+        </div>
+      </div>
     </div>
   );
 }

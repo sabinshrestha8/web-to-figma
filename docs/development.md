@@ -237,6 +237,10 @@ V1 is the CLI tool plus the Figma plugin. The web UI stays deferred (7b).
 
 From a production bundle (MUI dashboard): floating labels were all correctly sized, positioned and absolute, but every outlined select draws its top border through the label in Figma — the browser cuts a notch (fieldset legend) that Figma has no primitive for. New `NOTCHED_OUTLINE` info diagnostic (fieldset + top border + nonzero legend), unit-tested and mutation-checked, plus a `selects` fixture asserting it end to end. Pixels unchanged (nothing to map it to); mapping.md documents the limit.
 
+### Hotfix: outlines as outside strokes (2026-10-11)
+
+Same bundle: a dropdown's top edge, painted by an `outline` in the browser, was missing in Figma — outlines were reported and skipped. A visible outline now maps to a uniform outside stroke (Figma draws outside strokes the way CSS draws outlines: past the border box, over neighbors). Exotic styles draw solid and nonzero offsets are ignored, both reported; on a bordered element the inside border still wins. IR 1.6 adds the optional stroke `align` (absent means inside, so old bundles load unchanged).
+
 ### Phase 7b: Web app UX (2026-10-10)
 
 Un-deferred: V1 users asked whether every flow needs the terminal, so the browser UI now exists for public URLs (login stays in the CLI).

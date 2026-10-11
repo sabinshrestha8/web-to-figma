@@ -352,6 +352,13 @@ describe("layout fixtures → IR", async () => {
     expect(b.ir.diagnostics.map((d) => d.code)).toContain("NOTCHED_OUTLINE");
   });
 
+  it("draws the selects outline-only box as an outside stroke", async () => {
+    const b = await bundle("selects");
+    const root = b.ir.captures[0]!.root;
+    const outlined = byId(root, "select-outline");
+    expect(outlined.stroke).toMatchObject({ style: "solid", align: "outside" });
+  });
+
   it("keeps nested-complex overlays absolute in paint order", async () => {
     const b = await bundle("nested-complex");
     const root = b.ir.captures[0]!.root;
