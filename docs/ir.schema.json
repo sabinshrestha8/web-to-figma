@@ -151,6 +151,7 @@
               "IGNORE_SELECTOR_UNUSED",
               "LAYOUT_ABSOLUTE_FALLBACK",
               "NEGATIVE_ZINDEX",
+              "NOTCHED_OUTLINE",
               "SCROLL_CONTAINER_EXPANDED"
             ]
           },

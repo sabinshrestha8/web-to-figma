@@ -31,6 +31,7 @@ export const DIAGNOSTIC_CODES = {
   IGNORE_SELECTOR_UNUSED: "warning",
   LAYOUT_ABSOLUTE_FALLBACK: "info",
   NEGATIVE_ZINDEX: "info",
+  NOTCHED_OUTLINE: "info",
   SCROLL_CONTAINER_EXPANDED: "info",
 } as const satisfies Record<string, Severity>;
 
