@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { parseBorder, parseBoxShadow, parseFilter, parseRadius, parseTransform } from "./box.ts";
+import {
+  parseBorder,
+  parseBoxShadow,
+  parseFilter,
+  parseOutline,
+  parseRadius,
+  parseTransform,
+} from "./box.ts";
 import { backgroundLayers, parseLinear, parseRadial, parseStops } from "./paint.ts";
 
 const black = { r: 0, g: 0, b: 0, a: 1 };
@@ -201,5 +208,43 @@ describe("shadows, filters, transforms", () => {
     ).toBeCloseTo(90);
     expect(parseTransform("none", "none", "150% 150%")).toMatchObject({ scaleX: 1.5, scaleY: 1.5 });
     expect(parseTransform("none", "x 45deg", "none").unsupported).toMatch(/3D/);
+  });
+});
+
+describe("parseOutline", () => {
+  const style =
+    (o: Record<string, string>) =>
+    (p: string): string =>
+      o[p] ?? "";
+  const solid = {
+    "outline-style": "solid",
+    "outline-width": "2px",
+    "outline-color": "rgb(0, 0, 255)",
+    "outline-offset": "0px",
+  };
+
+  it("maps a solid outline to a uniform outside stroke, silently", () => {
+    expect(parseOutline(style(solid))).toEqual({
+      stroke: {
+        color: { r: 0, g: 0, b: 1, a: 1 },
+        weights: { top: 2, right: 2, bottom: 2, left: 2 },
+        style: "solid",
+        align: "outside",
+      },
+    });
+  });
+
+  it("keeps dashed, reports auto/offset/empty cases", () => {
+    expect(parseOutline(style({ ...solid, "outline-style": "dashed" })).stroke?.style).toBe("dashed");
+    expect(parseOutline(style({ ...solid, "outline-style": "auto" }))).toMatchObject({
+      stroke: { style: "solid" },
+      approximated: expect.stringContaining("auto"),
+    });
+    expect(parseOutline(style({ ...solid, "outline-offset": "3px" })).approximated).toMatch(
+      /offset 3px ignored/,
+    );
+    expect(parseOutline(style({ ...solid, "outline-style": "none" }))).toEqual({});
+    expect(parseOutline(style({ ...solid, "outline-width": "0px" }))).toEqual({});
+    expect(parseOutline(style({ ...solid, "outline-color": "transparent" }))).toEqual({});
   });
 });

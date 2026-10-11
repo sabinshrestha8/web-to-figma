@@ -1,5 +1,12 @@
 import { BlendMode, type BoxNode, type Effect, type Paint } from "@w2f/ir";
-import { parseBorder, parseBoxShadow, parseFilter, parseRadius, parseTransform } from "./box.ts";
+import {
+  parseBorder,
+  parseBoxShadow,
+  parseFilter,
+  parseOutline,
+  parseRadius,
+  parseTransform,
+} from "./box.ts";
 import { parseColor, px, round2 } from "./css.ts";
 import { backgroundRect, type ImageAsset, imgPaint, placementPaint } from "./images.ts";
 import type { BackgroundLayer } from "./paint.ts";
@@ -227,13 +234,19 @@ export function boxStyle(
     );
   }
   if (border.approximated) ctx.report.add("UNSUPPORTED_CSS", border.approximated, ctx.nodeId, "approximated");
-  if (el.style["outline-style"] !== "none" && (px(el.style["outline-width"]) ?? 0) > 0) {
+  const outline = parseOutline(style);
+  // An outline draws outside the border box, like a Figma outside stroke — but a node gets one
+  // alignment, so a bordered element keeps its inside border and the outline stays skipped.
+  const stroke = border.stroke ?? outline.stroke;
+  if (border.stroke && outline.stroke) {
     ctx.report.add("UNSUPPORTED_CSS", "outline", ctx.nodeId, "skipped");
+  } else if (outline.approximated) {
+    ctx.report.add("UNSUPPORTED_CSS", outline.approximated, ctx.nodeId, "approximated");
   }
   return {
     ...base,
     fills: fills(el, ctx, opts.withColor),
-    ...(border.stroke ? { stroke: border.stroke } : {}),
+    ...(stroke ? { stroke } : {}),
     effects: effects(el, ctx),
     blendMode: blendMode(el, ctx),
   };

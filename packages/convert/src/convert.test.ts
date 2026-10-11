@@ -385,6 +385,45 @@ describe("snapshotToIR box fidelity", () => {
     expect(convert(snap(60, "none")).diagnostics).toEqual([]);
   });
 
+  it("draws an outline as an outside stroke, unless the box already has a border", () => {
+    const outlined = (extra: Record<string, string> = {}) =>
+      page((body) => [
+        el(
+          body.id,
+          "div",
+          { x: 0, y: 0, width: 100, height: 40 },
+          {
+            ...bg("rgb(255, 255, 255)"),
+            "outline-style": "solid",
+            "outline-width": "2px",
+            "outline-color": "rgb(37, 99, 235)",
+            "outline-offset": "0px",
+            ...extra,
+          },
+        ),
+      ]);
+    const { capture, diagnostics } = convert(outlined());
+    expect(box(capture.root.children[0]).children[0]).toMatchObject({
+      stroke: { style: "solid", align: "outside", weights: { top: 2, right: 2, bottom: 2, left: 2 } },
+    });
+    expect(diagnostics).toEqual([]);
+    const bordered = convert(
+      outlined(
+        Object.fromEntries(
+          ["top", "right", "bottom", "left"].flatMap((s) => [
+            [`border-${s}-width`, "1px"],
+            [`border-${s}-style`, "solid"],
+          ]),
+        ),
+      ),
+    );
+    expect(box(box(bordered.capture.root.children[0]).children[0]).stroke).toMatchObject({
+      weights: { top: 1, right: 1, bottom: 1, left: 1 },
+    });
+    expect(box(box(bordered.capture.root.children[0]).children[0]).stroke?.align).toBeUndefined();
+    expect(bordered.diagnostics.map((d) => d.code)).toEqual(["UNSUPPORTED_CSS"]);
+  });
+
   it("flattens paint-less wrappers around a same-sized child, keeping the wrapper's positioning", () => {
     const snap = page((body) => {
       const wrap = el(body.id, "div", { x: 10, y: 10, width: 100, height: 50 }, { position: "absolute" });

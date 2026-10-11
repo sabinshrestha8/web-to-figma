@@ -70,6 +70,8 @@ export const STYLE_PROPS = [
   "z-index",
   "outline-style",
   "outline-width",
+  "outline-color",
+  "outline-offset",
   "clip-path",
   "mask-image",
   "appearance",
@@ -111,6 +113,7 @@ export const COLOR_PROPS = [
   "border-right-color",
   "border-bottom-color",
   "border-left-color",
+  "outline-color",
 ] as const satisfies readonly StyleProp[];
 
 /** Properties with colors embedded in a larger value; each color function inside is normalized the same way. */

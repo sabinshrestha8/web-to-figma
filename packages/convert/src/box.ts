@@ -51,6 +51,37 @@ export function parseBorder(style: Style): { stroke?: Stroke; mixedColors: boole
 const CORNERS = ["top-left", "top-right", "bottom-right", "bottom-left"] as const;
 
 /**
+ * A visible outline → a uniform outside stroke (CSS draws outlines outside the border box, and
+ * Figma strokes can sit outside too). Borders stay inside strokes; when both exist the caller
+ * keeps the border (Figma aligns all of a node's strokes the same way).
+ */
+export function parseOutline(style: Style): { stroke?: Stroke; approximated?: string } {
+  const s = style("outline-style");
+  const width = s === "none" ? 0 : (px(style("outline-width")) ?? 0);
+  const color = parseColor(style("outline-color"));
+  if (s === "none" || width <= 0 || !color) return {};
+  const dash = s === "dashed" || s === "dotted" ? s : "solid";
+  const offset = px(style("outline-offset")) ?? 0;
+  const w = round2(width);
+  return {
+    stroke: {
+      color,
+      weights: { top: w, right: w, bottom: w, left: w },
+      style: dash,
+      align: "outside",
+    },
+    ...(dash === s && offset === 0
+      ? {}
+      : {
+          approximated: [
+            ...(dash === s ? [] : [`outline-style ${s} drawn as solid`]),
+            ...(offset === 0 ? [] : [`outline-offset ${offset}px ignored`]),
+          ].join("; "),
+        }),
+  };
+}
+
+/**
  * Corner radii [tl, tr, br, bl] in px, after CSS's overlap scaling (radii that don't fit are scaled
  * down together). Figma corners are circular, so an elliptical corner uses its smaller radius.
  */

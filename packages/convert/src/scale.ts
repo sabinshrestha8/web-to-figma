@@ -26,6 +26,7 @@ const LENGTH_PROPS: StyleProp[] = [
   "filter",
   "backdrop-filter",
   "outline-width",
+  "outline-offset",
 ];
 
 const PX = /(-?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?)px/gi;
