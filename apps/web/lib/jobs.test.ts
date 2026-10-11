@@ -2,7 +2,8 @@ import { existsSync, mkdirSync, mkdtempSync, utimesSync, writeFileSync } from "n
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createStore, dataDir, sweepJobs } from "./jobs.ts";
+import { createStore } from "./jobs.ts";
+import { dataDir, sweepJobs } from "./sweep.ts";
 
 afterEach(() => {
   delete process.env.W2F_DATA_DIR;

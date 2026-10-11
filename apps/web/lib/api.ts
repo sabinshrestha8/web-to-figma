@@ -2,7 +2,7 @@ import { createPolicy, parseViewport } from "@w2f/capture";
 import { diag } from "@w2f/ir";
 import { z } from "zod";
 import { guard } from "./guard.ts";
-import { type JobStatus, type NormalizedInput, readBundle, type Store } from "./jobs.ts";
+import { ensureStarted, type JobStatus, type NormalizedInput, readBundle, type Store } from "./jobs.ts";
 import type { LoginStore } from "./session.ts";
 
 const viewportObject = z.object({
@@ -181,6 +181,7 @@ const loginBody = z.object({ url: z.string().min(1).max(2000) });
 export async function postLogin(req: Request, logins: LoginStore): Promise<Response> {
   const blocked = guard(req);
   if (blocked) return blocked;
+  ensureStarted();
   let body: unknown;
   try {
     body = await req.json();

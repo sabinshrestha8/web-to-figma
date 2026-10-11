@@ -8,7 +8,7 @@ export function dataDir(): string {
   return process.env.W2F_DATA_DIR ?? join(process.cwd(), "..", "..", ".data", "jobs");
 }
 
-/** Delete job dirs older than 24h. Called once at server startup (instrumentation.ts). */
+/** Delete job dirs older than 24h. Runs once per process, on first API use. */
 export function sweepJobs(root = dataDir(), now = Date.now()): number {
   let names: string[];
   try {

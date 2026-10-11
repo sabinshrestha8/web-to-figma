@@ -3,10 +3,16 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { type ConvertJob, convertUrls, type StorageState, type Viewport } from "@w2f/capture";
 import type { Bundle, Capture, Diagnostic, Node, Result } from "@w2f/ir";
-import { dataDir } from "./sweep.ts";
-
-export { dataDir, sweepJobs } from "./sweep.ts";
+import { dataDir, sweepJobs } from "./sweep.ts";
 export const MAX_JOBS = 2;
+
+let swept = false;
+/** Sweep once per process, on first use: a startup hook (instrumentation.ts) gets Edge-bundled. */
+export function ensureStarted(): void {
+  if (swept) return;
+  swept = true;
+  sweepJobs();
+}
 
 export type JobState = "queued" | "running" | "done" | "failed";
 export type JobStage = "queued" | "capturing" | "done" | "failed";
@@ -78,6 +84,7 @@ export function createStore(execute: Execute = convertUrls): Store {
   const jobs = new Map<string, JobRecord>();
   return {
     create(input) {
+      ensureStarted();
       const active = [...jobs.values()].filter((j) => j.status === "queued" || j.status === "running");
       if (active.length >= MAX_JOBS) return null;
       const total = input.urls.length * input.viewports.length;
@@ -142,6 +149,7 @@ async function run(rec: JobRecord, input: NormalizedInput, execute: Execute, tot
 
 /** This job's bundle, or null when it isn't done (or the id is unknown). */
 export function readBundle(id: string): Bundle | null {
+  ensureStarted();
   try {
     return JSON.parse(readFileSync(join(dataDir(), id, "bundle.json"), "utf8")) as Bundle;
   } catch {

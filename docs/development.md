@@ -242,7 +242,7 @@ From a production bundle (MUI dashboard): floating labels were all correctly siz
 Un-deferred: V1 users asked whether every flow needs the terminal, so the browser UI now exists for public URLs (login stays in the CLI).
 
 - **`apps/web`** (Next 16, `pnpm web` → `127.0.0.1:4317`): form (URLs, viewports as objects or `1440x900` strings, wait-for, settle), 500 ms polling, per-capture screenshot vs IR preview, counts, filterable diagnostics table, bundle download.
-- **Job runner** (`lib/jobs.ts`): in-memory `Map`, max 2 non-terminal jobs (else 429), artifacts in `.data/jobs/<id>/bundle.json`, 24 h sweep at startup via `instrumentation.ts`, crash fails loudly instead of sticking at running.
+- **Job runner** (`lib/jobs.ts`): in-memory `Map`, max 2 non-terminal jobs (else 429), artifacts in `.data/jobs/<id>/bundle.json`, 24 h sweep once per process on first API use (a startup hook via `instrumentation.ts` gets Edge-bundled despite `runtime = "nodejs"` — tried, reverted), crash fails loudly instead of sticking at running.
 - **API** (`lib/api.ts`, all logic unit-testable without a server): strict Zod input (`INVALID_INPUT`, new fatal code), URL-policy pre-check (400 `URL_BLOCKED`), Host/Origin/JSON guard (403), thin Next routes. Deviations from the `api.md` draft: no `cookieHeader`, no DOM-node count, coarse `stage`, IR endpoint returns `{ capture, assetUrls }`.
 - **Found while verifying on the dev server** (both real bugs, both fixed):
   1. `instrumentation.ts` was also compiled for the Edge runtime, where `node:fs` fails — the sweep never ran. Fix: `export const runtime = "nodejs"`.
