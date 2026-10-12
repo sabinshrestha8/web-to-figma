@@ -492,6 +492,44 @@ describe("layout engine", () => {
     });
   });
 
+  it("keeps an item pushed by an auto margin at the end (space-between), not start + a fixed gap", () => {
+    const row = (margin: boolean) => {
+      const { nodes } = page((b) => {
+        const r = el(
+          b.id,
+          "header",
+          { x: 0, y: 0, width: 400, height: 60 },
+          {
+            ...bg("rgb(1, 1, 1)"),
+            display: "flex",
+            "align-items": "center",
+            "padding-left": "20px",
+            "padding-right": "20px",
+          },
+        );
+        return [
+          r,
+          el(r.id, "h2", { x: 20, y: 20, width: 100, height: 20 }, bg("rgb(2, 2, 2)")),
+          el(
+            r.id,
+            "button",
+            { x: 280, y: 15, width: 100, height: 30 },
+            { ...bg("rgb(3, 3, 3)"), ...(margin ? { "margin-left": "160px" } : {}) },
+          ),
+        ];
+      });
+      return box("header", convert(nodes).capture.root).layout;
+    };
+    expect(row(true)).toMatchObject({
+      mode: "stack",
+      direction: "horizontal",
+      justify: "space-between",
+      gap: 0,
+    });
+    // The same geometry without a margin is a plain gap the browser laid out: start + gap.
+    expect(row(false)).not.toMatchObject({ justify: "space-between" });
+  });
+
   it("stacks a centered icon button whose text box sits 0.6 px off center", () => {
     // MUI Button: justify center plus margins, so only the measured stack (B) verifies.
     const { nodes } = page((b) => {

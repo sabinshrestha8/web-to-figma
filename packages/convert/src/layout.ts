@@ -387,6 +387,17 @@ function stacking(
   const innerMain = axis === "vertical" ? inner.height : inner.width;
   const lastEnd = axis === "vertical" ? last.y + last.height - inner.y : last.x + last.width - inner.x;
   const padMainEnd = Math.max(0, innerMain - lastEnd);
+  // Two items in a row whose margins make up the gap: an auto margin (ml-auto / mr-auto, computed as
+  // its used px) pushed them apart. space-between keeps the second at the end when Figma's glyphs run
+  // a bit wider, where start + the measured gap would shove it past the end (and out of a clipping
+  // card). ponytail: rows of three or more keep start; their gaps come from space-x/margins as often.
+  const margin = (it: LayoutItem | undefined, side: "left" | "right") =>
+    Number.parseFloat(it?.raw?.style[`margin-${side}`] ?? "") || 0;
+  const pushed =
+    axis === "horizontal" &&
+    items.length === 2 &&
+    gap > 1 &&
+    margin(items[0], "right") + margin(items[1], "left") >= gap - GAP_PX;
   const crossStart = round2(Math.max(0, padCross));
   const crossEnd = round2(Math.max(0, padCrossEnd));
   const padding =
@@ -399,10 +410,10 @@ function stacking(
       direction: axis === "vertical" ? "vertical" : "horizontal",
       reverse: false,
       wrap: false,
-      gap: round2(gap),
+      gap: pushed ? 0 : round2(gap),
       crossGap: 0,
       padding,
-      justify: "start",
+      justify: pushed ? "space-between" : "start",
       align,
     },
     flow: items,
