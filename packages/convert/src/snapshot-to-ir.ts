@@ -255,6 +255,14 @@ export function snapshotToIR(raw: RawSnapshot, opts: ConvertOptions): ConvertRes
         }
       }
     }
+    if (!island && n.pseudo) {
+      report.add(
+        "PSEUDO_ELEMENT_SKIPPED",
+        `painted ::${n.pseudo === "both" ? "before and ::after" : n.pseudo} content is not captured`,
+        nodeId,
+        "skipped",
+      );
+    }
     if (n.svg && !island) return vector(n, n.svg, ctx, visible);
     const kids = island ? [] : convertAll(n);
     const layout: Layout = island ? { mode: "none" } : (pendingLayouts.get(n.id) ?? { mode: "none" });

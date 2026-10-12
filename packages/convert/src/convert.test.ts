@@ -385,6 +385,16 @@ describe("snapshotToIR box fidelity", () => {
     expect(convert(snap(60, "none")).diagnostics).toEqual([]);
   });
 
+  it("reports painted pseudo-elements (no DOM node to measure)", () => {
+    const snap = page((body) => [
+      {
+        ...el(body.id, "div", { x: 0, y: 0, width: 100, height: 10 }, bg("rgb(1, 1, 1)")),
+        pseudo: "before" as const,
+      },
+    ]);
+    expect(convert(snap).diagnostics.map((d) => d.code)).toContain("PSEUDO_ELEMENT_SKIPPED");
+  });
+
   it("draws an outline as an outside stroke, unless the box already has a border", () => {
     const outlined = (extra: Record<string, string> = {}) =>
       page((body) => [
