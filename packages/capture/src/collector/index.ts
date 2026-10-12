@@ -14,6 +14,7 @@ import {
   STYLE_PROPS,
   type StyleProp,
 } from "@w2f/convert/snapshot";
+import { paintsPseudo } from "./pseudo.ts";
 import { serializeSvg } from "./svg.ts";
 
 const SKIP = new Set(["script", "style", "noscript", "template", "head", "meta", "link", "title", "base"]);
@@ -154,6 +155,21 @@ export function collect(opts: { maxNodes: number; dpr: number; ignore?: string[]
       attrs,
     };
     if (ignored.has(el)) raw.ignore = true;
+    // Painted ::before/::after has no DOM node, so only its existence is recorded (PSEUDO_ELEMENT_SKIPPED).
+    const pseudos = (["::before", "::after"] as const).filter((pseudo) => {
+      let pcs: CSSStyleDeclaration;
+      try {
+        pcs = getComputedStyle(el, pseudo);
+      } catch {
+        return false;
+      }
+      return paintsPseudo((prop) => {
+        const v = pcs.getPropertyValue(prop);
+        return prop === "background-color" ? normalizeColor(v) : v;
+      });
+    });
+    if (pseudos.length > 0)
+      raw.pseudo = pseudos.length === 2 ? "both" : pseudos[0] === "::before" ? "before" : "after";
     const transformed = style.transform !== "none" || style.rotate !== "none" || style.scale !== "none";
     if (transformed && el instanceof HTMLElement) {
       raw.layoutSize = { width: el.offsetWidth, height: el.offsetHeight };

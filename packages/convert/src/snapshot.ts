@@ -143,6 +143,8 @@ export interface RawElement {
   svg?: string;
   /** Matched one of the capture's `ignore` selectors. */
   ignore?: true;
+  /** A painted ::before/::after (no DOM node to measure; geometry needs CDP). */
+  pseudo?: "before" | "after" | "both";
 }
 
 export interface RawText {
