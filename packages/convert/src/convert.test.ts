@@ -865,6 +865,20 @@ describe("inline formatting contexts", () => {
     expect(nodes.find((n) => n.type === "text" && n.characters.startsWith("Updated"))?.ignore).toBe(true);
   });
 
+  it("draws a fieldset's top border through its legend's middle, as browsers do", () => {
+    const snap = page((body) => {
+      const fs = el(
+        body.id,
+        "fieldset",
+        { x: 0, y: 95, width: 200, height: 45 },
+        { "border-top-width": "1px", "border-top-style": "solid", "border-top-color": "rgb(0, 0, 0)" },
+      );
+      return [fs, el(fs.id, "legend", { x: 8, y: 95, width: 0, height: 11 }, { visibility: "hidden" })];
+    });
+    const fieldset = all(convert(snap).capture.root).find((n) => n.type === "box" && n.stroke);
+    expect(fieldset?.bounds).toEqual({ x: 0, y: 100, width: 200, height: 40 });
+  });
+
   it("truncates an overflowing ellipsis line at the content box, keeping the characters", () => {
     const text = (width: number) => {
       const snap = page((body) => {

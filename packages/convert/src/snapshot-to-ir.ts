@@ -52,6 +52,20 @@ function selectorOf(el: RawElement): string {
   return `${el.tag}${el.attrs.id ? `#${el.attrs.id}` : ""}${cls.map((c) => `.${c}`).join("")}`;
 }
 
+/**
+ * A fieldset's top border runs through the middle of its legend, not along its box top. MUI's
+ * outlined inputs rely on it: the fieldset sits 5 px above the input so the line lands on its edge.
+ * ponytail: a visible legend's notch (a gap in the line) is not cut; the line is drawn through.
+ */
+export function fieldsetBorderBox(n: RawElement, kids: (RawElement | RawText)[]): RawElement {
+  const legend = kids.find((k): k is RawElement => k.kind === "element" && k.tag === "legend");
+  if (!legend) return n;
+  const border = Number.parseFloat(n.style["border-top-width"]) || 0;
+  const shift = legend.rect.y + legend.rect.height / 2 - border / 2 - n.rect.y;
+  if (shift <= 0) return n;
+  return { ...n, rect: { ...n.rect, y: n.rect.y + shift, height: Math.max(0, n.rect.height - shift) } };
+}
+
 /** Stacking bucket per CSS painting order: negative z, in-flow, positioned (z auto/0), positive z. */
 export function stackKey(n: RawElement | { kind: "text" | "inline" }, parent: RawElement): [number, number] {
   if (n.kind !== "element") return [1, 0];
@@ -239,6 +253,7 @@ export function snapshotToIR(raw: RawSnapshot, opts: ConvertOptions): ConvertRes
       const selector = selectorOf(parent);
       return inlineText(n, parent, { captureId, report, kidsOf, decorationOf, selector, maxY: height });
     }
+    if (n.tag === "fieldset") n = fieldsetBorderBox(n, children.get(n.id) ?? []);
     if (n.rect.y >= height) return null;
     if (Number.parseFloat(n.style.opacity) === 0) return null;
 
