@@ -323,6 +323,12 @@ describe("layout fixtures → IR", async () => {
       justify: "end",
     });
     expect(b.ir.diagnostics.filter((d) => d.code === "RASTERIZED")).not.toEqual([]);
+    // The fieldset's top border runs through its legend's middle: on the field's edge, inside its clip.
+    const field = byId(root, "outlined-field");
+    const border = byId(root, "outlined-border");
+    expect(field.clip).toBe(true);
+    expect(Math.abs(border.bounds.y - field.bounds.y)).toBeLessThan(0.6);
+    expect(border.bounds.y + border.bounds.height).toBeCloseTo(field.bounds.y + field.bounds.height, 1);
   });
 
   it("builds the dashboard shell as a stack with a filling main column", async () => {

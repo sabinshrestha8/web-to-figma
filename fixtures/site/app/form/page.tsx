@@ -31,6 +31,17 @@ export default function Form() {
               <option>Design</option>
             </select>
           </label>
+          {/* MUI's outlined input: a clipped box with its border on a fieldset placed 5 px high */}
+          <div data-testid="outlined-field" className="relative h-10 overflow-hidden rounded-md">
+            <span className="flex h-full items-center px-3 text-sm text-slate-900">Department</span>
+            <fieldset
+              data-testid="outlined-border"
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 -top-[5px] bottom-0 m-0 rounded-md border border-slate-300 px-2"
+            >
+              <legend className="invisible h-[11px] max-w-[0.01px] overflow-hidden p-0 text-xs">x</legend>
+            </fieldset>
+          </div>
           <label data-testid="notify-row" className="flex flex-row items-center gap-2 text-sm text-slate-700">
             <input type="checkbox" defaultChecked className="h-4 w-4" />
             Notify them by email
