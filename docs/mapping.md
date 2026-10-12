@@ -189,3 +189,5 @@ V1 produces visual structure only, not Figma components. The path for later vers
 ## Ignored content (IR 1.5)
 
 Elements matching a capture `ignore` selector (live data: clocks, charts) get `ignore: true` on their node. It survives flattening (the surviving child inherits it), and a text node is ignored when any inline element inside its paragraph is. The Figma build ignores the flag; drift compares only such a node's bounds and masks its area in the pixel diff.
+
+- **Fieldsets:** a fieldset with a `<legend>` draws its top border through the legend's middle, so its box top moves down to there. MUI outlined inputs place the fieldset 5 px above the input for this; without the shift the line sat 5 px too high, and was clipped away entirely inside a clipping input (a "Department" select lost its top border). A visible legend's notch is not cut: the line runs through it.
