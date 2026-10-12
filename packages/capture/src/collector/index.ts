@@ -44,6 +44,7 @@ function colorNormalizer(): (value: string) => string {
 
 /** Color functions inside shadows/gradients: normalize each one in place. */
 const COLOR_FN = /\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\([^()]*\)/g;
+const PX = /(-?\d*\.?\d+(?:e-?\d+)?)px/g;
 
 /** Collapse white space but keep edge spaces: the converter joins inline neighbors, then trims. */
 function collapse(text: string, whiteSpace: string): string {
@@ -63,6 +64,8 @@ export function collect(opts: { maxNodes: number; dpr: number; ignore?: string[]
   elements: Element[];
 } {
   const elements: Element[] = [];
+  /** Effective CSS zoom per element id (the product of its ancestors' `zoom`). */
+  const zooms: number[] = [];
   const normalizeColor = colorNormalizer();
   const range = document.createRange();
   const nodes: RawNode[] = [];
@@ -126,8 +129,15 @@ export function collect(opts: { maxNodes: number; dpr: number; ignore?: string[]
       return;
     }
 
+    // CSS `zoom` scales an element's rects but not its computed lengths (padding, font-size, …):
+    // scale those to match, so they agree with the rects the IR is built from.
+    const zoom = (parent === null ? 1 : (zooms[parent] ?? 1)) * (Number.parseFloat(cs.zoom) || 1);
     const style = {} as Record<StyleProp, string>;
     for (const p of STYLE_PROPS) style[p] = cs.getPropertyValue(p);
+    if (zoom !== 1) {
+      for (const p of STYLE_PROPS)
+        style[p] = style[p].replace(PX, (_, n: string) => `${Math.round(Number(n) * zoom * 1000) / 1000}px`);
+    }
     for (const p of COLOR_PROPS) style[p] = normalizeColor(style[p]);
     for (const p of EMBEDDED_COLOR_PROPS) {
       if (style[p] !== "none") style[p] = style[p].replace(COLOR_FN, normalizeColor);
@@ -145,6 +155,7 @@ export function collect(opts: { maxNodes: number; dpr: number; ignore?: string[]
 
     const id = nextId++;
     elements[id] = el;
+    zooms[id] = zoom;
     const raw: RawElement = {
       kind: "element",
       id,
@@ -172,7 +183,7 @@ export function collect(opts: { maxNodes: number; dpr: number; ignore?: string[]
       raw.pseudo = pseudos.length === 2 ? "both" : pseudos[0] === "::before" ? "before" : "after";
     const transformed = style.transform !== "none" || style.rotate !== "none" || style.scale !== "none";
     if (transformed && el instanceof HTMLElement) {
-      raw.layoutSize = { width: el.offsetWidth, height: el.offsetHeight };
+      raw.layoutSize = { width: el.offsetWidth * zoom, height: el.offsetHeight * zoom };
     }
     if (el instanceof HTMLImageElement) {
       const broken = el.complete && el.naturalWidth === 0 && el.naturalHeight === 0;
