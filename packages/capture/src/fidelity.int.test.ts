@@ -294,6 +294,8 @@ describe("layout fixtures → IR", async () => {
       justify: "space-between",
     });
     expect(byId(root, "site-nav").layout).toMatchObject({ mode: "stack", direction: "horizontal" });
+    // ml-auto: the button stays pinned to the end even if Figma draws the title wider.
+    expect(byId(root, "card-header").layout).toMatchObject({ mode: "stack", justify: "space-between" });
     expect(byId(root, "cta-row").layout).toMatchObject({
       mode: "stack",
       direction: "horizontal",

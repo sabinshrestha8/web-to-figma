@@ -30,6 +30,15 @@ export default function Nav() {
             Read the docs
           </a>
         </div>
+        {/* A card header whose control is pushed right by ml-auto inside a clipping card */}
+        <div className="mx-auto mt-16 max-w-md overflow-hidden rounded-xl border border-slate-200 text-left">
+          <div data-testid="card-header" className="flex h-14 items-center px-5">
+            <h2 className="truncate font-semibold">Clock In/Out</h2>
+            <button type="button" className="ml-auto rounded-md border border-slate-300 px-3 py-1 text-sm">
+              Department
+            </button>
+          </div>
+        </div>
       </main>
     </div>
   );
