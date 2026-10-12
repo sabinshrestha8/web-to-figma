@@ -39,6 +39,18 @@ export default function Nav() {
             </button>
           </div>
         </div>
+        {/* The same header under CSS zoom: computed lengths are unzoomed, rects are zoomed */}
+        <div
+          style={{ zoom: 0.938 }}
+          className="mx-auto mt-8 max-w-md overflow-hidden rounded-xl border text-left"
+        >
+          <div data-testid="zoomed-header" className="flex h-14 items-center justify-between gap-3 px-5">
+            <h2 className="truncate font-semibold">Analytics</h2>
+            <button type="button" className="rounded-md border border-slate-300 px-3 py-1 text-sm">
+              Choose type
+            </button>
+          </div>
+        </div>
       </main>
     </div>
   );

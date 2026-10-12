@@ -296,6 +296,14 @@ describe("layout fixtures → IR", async () => {
     expect(byId(root, "site-nav").layout).toMatchObject({ mode: "stack", direction: "horizontal" });
     // ml-auto: the button stays pinned to the end even if Figma draws the title wider.
     expect(byId(root, "card-header").layout).toMatchObject({ mode: "stack", justify: "space-between" });
+    // Under CSS zoom, padding and font size are scaled to the zoomed rects, so the CSS layout verifies.
+    const zoomed = byId(root, "zoomed-header");
+    expect(zoomed.layout).toMatchObject({ mode: "stack", justify: "space-between", gap: 11.26 });
+    if (zoomed.layout.mode !== "stack") throw new Error("not a stack");
+    expect(zoomed.layout.padding.left).toBeCloseTo(18.76, 1);
+    const title = zoomed.children[0];
+    if (title?.type !== "text") throw new Error(`title is ${title?.type}`);
+    expect(title.runs[0]?.style.size).toBeCloseTo(16 * 0.938, 1);
     expect(byId(root, "cta-row").layout).toMatchObject({
       mode: "stack",
       direction: "horizontal",
