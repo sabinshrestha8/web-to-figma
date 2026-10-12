@@ -15,6 +15,8 @@ This document is the contract for `packages/capture/collector`, `packages/conver
 
 **Walk.** One pass over the tree. For each element: `getBoundingClientRect()` plus scroll offset, and about 60 whitelisted computed properties (never the full ~300). For each text node: `Range.getClientRects()`, which gives line boxes (line count, wrap width). Text is white-space-collapsed but **not trimmed**, so the converter knows whether a space separates it from its inline neighbors. A whitespace-only node between two inline siblings is kept even without a rect: Chrome gives the space where a line wraps no rect, but it still separates the words around it.
 
+**CSS `zoom`.** A zoomed element's rects are zoomed but its computed lengths are not (`zoom: 0.938` gives a 200 px-wide select a 187.6 px rect but `width: 200px`). The collector multiplies every `px` value in the captured styles by the element's effective zoom (the product of its ancestors' `zoom`), so padding, gaps, font sizes, borders and radii agree with the rects. Otherwise flex layouts fail verification and text comes out too large in Figma.
+
 **Skips:**
 - Subtrees with `display:none`, `visibility:hidden` or `opacity:0`.
 - Zero-area elements with no overflow-visible children.
