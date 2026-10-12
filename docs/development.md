@@ -241,6 +241,10 @@ From a production bundle (MUI dashboard): floating labels were all correctly siz
 
 Same bundle: a dropdown's top edge, painted by an `outline` in the browser, was missing in Figma — outlines were reported and skipped. A visible outline now maps to a uniform outside stroke (Figma draws outside strokes the way CSS draws outlines: past the border box, over neighbors). Exotic styles draw solid and nonzero offsets are ignored, both reported; on a bordered element the inside border still wins. IR 1.6 adds the optional stroke `align` (absent means inside, so old bundles load unchanged).
 
+### Hotfix: pseudo-element detection (2026-10-11)
+
+Same bundle, still hunting a hairline the IR can't explain after eliminating fills, borders, shadows, outlines and vectors: the one remaining unrecorded painter is `::before/::after` content (the `PSEUDO_ELEMENT_SKIPPED` code existed but was never emitted). The collector now flags painted pseudos — text/counter/image glyphs, non-transparent backgrounds, visible borders — while clearfixes and hidden pseudos stay quiet. Geometry still needs CDP (V1.1); for now the warning names the node instead of silence.
+
 ### Phase 7b: Web app UX (2026-10-10)
 
 Un-deferred: V1 users asked whether every flow needs the terminal, so the browser UI now exists for public URLs (login stays in the CLI).

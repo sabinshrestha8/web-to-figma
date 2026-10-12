@@ -25,6 +25,12 @@ export default function Selects() {
         .mui-field legend { visibility: hidden; height: 11px; font-size: 0.75em; padding: 0; }
         .mui-field legend span { padding-left: 5px; padding-right: 5px; display: inline-block; opacity: 0; }
         .mui-field legend.wide { width: 100px; }
+        .pseudo-top { position: relative; }
+        .pseudo-top::before {
+          content: ""; display: block; position: absolute;
+          top: -1px; left: 8px; right: 8px; height: 2px;
+          background: rgb(37, 99, 235);
+        }
       `}</style>
 
       <div data-testid="select-filled" className="mui-field">
@@ -59,6 +65,12 @@ export default function Selects() {
           style={{ border: "none", outline: "2px solid rgb(37, 99, 235)", outlineOffset: 0 }}
         >
           <span>Outlined control</span>
+        </div>
+      </div>
+
+      <div className="mui-field">
+        <div data-testid="select-pseudo" className="mui-box pseudo-top">
+          <span>With pseudo hairline</span>
         </div>
       </div>
     </div>

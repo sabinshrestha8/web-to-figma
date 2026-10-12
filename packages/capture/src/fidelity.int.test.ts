@@ -350,6 +350,7 @@ describe("layout fixtures → IR", async () => {
       .find((t) => t.characters === "Choose Type");
     expect(label?.position).toBe("absolute");
     expect(b.ir.diagnostics.map((d) => d.code)).toContain("NOTCHED_OUTLINE");
+    expect(b.ir.diagnostics.map((d) => d.code)).toContain("PSEUDO_ELEMENT_SKIPPED");
   });
 
   it("draws the selects outline-only box as an outside stroke", async () => {
