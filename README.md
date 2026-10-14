@@ -6,7 +6,7 @@ Convert a rendered React/Next.js page into an **editable** Figma design: real fr
 Rendered web UI → DOM + computed layout → UI IR (versioned, neutral) → Figma plugin → editable design
 ```
 
-**Status:** V1 ready (Phase 9 of 9). Pages convert end to end with **verified Auto Layout**: flex, wrap, baseline rows, block stacking and grids become stacks and fixed-track grids wherever a simulation reproduces the measured positions within 1 px, absolute positioning elsewhere. Boxes carry borders, radii, gradients (blended like CSS), shadows, blurs, opacity, blend, clipping, rotation and z-order. Each paragraph is one editable text layer with style runs, and CSS ellipsis truncation becomes Figma's native truncation (IR 1.4). Images are real image fills, inline SVG icons are editable vectors, and canvas, video and iframes arrive as raster islands. Captured pages can be diffed node by node against an older capture or against a Figma frame. See [docs/development.md](docs/development.md).
+**Status:** V1 ready; Phase 10 adds URL import in the Figma plugin through a deployable capture service (not yet deployed or published). Pages convert end to end with **verified Auto Layout**: flex, wrap, baseline rows, block stacking and grids become stacks and fixed-track grids wherever a simulation reproduces the measured positions within 1 px, absolute positioning elsewhere. Boxes carry borders, radii, gradients (blended like CSS), shadows, blurs, opacity, blend, clipping, rotation and z-order. Each paragraph is one editable text layer with style runs, and CSS ellipsis truncation becomes Figma's native truncation (IR 1.4). Images are real image fills, inline SVG icons are editable vectors, and canvas, video and iframes arrive as raster islands. Captured pages can be diffed node by node against an older capture or against a Figma frame. See [docs/development.md](docs/development.md).
 
 ## Quickstart (development)
 
@@ -56,7 +56,15 @@ To capture a logged-in page from the UI instead, open the **Saved session** card
 
 1. `pnpm plugin:build` — again after every pull: a bundle only imports into a plugin built from the same checkout.
 2. In Figma: **Plugins → Development → Import plugin from manifest…**, then pick `apps/figma-plugin/manifest.json`.
-3. Run **Web to Figma (dev)** and drop the `.w2f.json` file onto it.
+3. Run **Web to Figma (dev)** and drop the `.w2f.json` file onto it, or import a URL directly (next section).
+
+### Import a URL straight from the plugin
+
+```sh
+W2F_ALLOW_PRIVATE=1 pnpm server   # the capture service on http://localhost:8787 (ALLOW_PRIVATE only for localhost pages)
+```
+
+In the plugin, enter a URL, pick a viewport and press **Import website**. The service renders the page, the plugin downloads the bundle and builds it, with real progress and a Cancel button. **Options** takes click-first and wait-for selectors (for a dialog) and an access token. Deployed, the same service lets Community users import public pages with nothing installed. Logged-in pages still need the local capture plus a dropped bundle. Deploying, env vars, the API and publishing: [docs/hosting.md](docs/hosting.md).
 
 The plugin builds one frame per capture inside a Section. Each frame contains a hidden, locked **Reference screenshot** layer: unhide it to compare against the browser.
 
@@ -118,7 +126,8 @@ Results land in `.data/drift/`: `report.html` (changes grouped by kind with base
 | [security.md](docs/security.md) | Threat model, limits, performance |
 | [diagnostics.md](docs/diagnostics.md) | Error/warning codes, observability |
 | [testing.md](docs/testing.md) | Test levels, fixtures, visual regression |
-| [api.md](docs/api.md) | Local HTTP API (deferred design, not in V1) |
+| [api.md](docs/api.md) | Local web app HTTP API |
+| [hosting.md](docs/hosting.md) | Hosted capture service: API, run, deploy, env vars, plugin release |
 | [release.md](docs/release.md) | V1 release checklist, fresh-machine install, plugin publish |
 | [development.md](docs/development.md) | Workflow, phase plan, Definition of Done, phase log |
 | [adr/](docs/adr) | Architecture decision records |

@@ -1,5 +1,7 @@
 # Local API (implemented in Phase 7b)
 
+This is the local web app's API. The hosted capture service the Figma plugin calls has its own, smaller API: see [hosting.md](hosting.md#api).
+
 All routes:
 - run in the Node runtime;
 - sit behind the Host/Origin guard ([security.md](security.md));

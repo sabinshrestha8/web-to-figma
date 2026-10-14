@@ -49,7 +49,7 @@ Every approximation is reported as a diagnostic ([diagnostics.md](diagnostics.md
 
 - AI/LLM at runtime, semantic component detection, design-system inference, source reconstruction.
 - SaaS, billing, enterprise auth, collaboration, version history, multiplayer.
-- **Hosted/multi-tenant mode.** It needs a network-egress sandbox; see [security.md](security.md).
+- **Multi-tenant SaaS.** A single hosted capture service now exists for the plugin's URL import (public pages only; [hosting.md](hosting.md)). Accounts, billing and authenticated hosted captures are still out of scope.
 - **Project-folder mode.** It would execute untrusted install/build scripts.
 - Animations (we capture one settled frame with reduced motion), responsive reconstruction, CSS variables/tokens, Tailwind semantics.
 
@@ -188,8 +188,9 @@ Each package boundary is a **runtime** boundary: page, Node, pure, or Figma. `co
 
 ## 13. Roadmap
 
-- **V1.1:** plugin pull-by-code with a pairing token; pseudo-elements via CDP; project-folder mode.
-- **V2:** browser extension reusing the collector (authenticated pages); hosted mode with an egress-sandboxed worker.
+- **Done (Phase 10):** the plugin imports a URL directly through the hosted capture service ([hosting.md](hosting.md)); this replaced the planned pull-by-code pairing.
+- **V1.1:** pseudo-elements via CDP; project-folder mode.
+- **V2:** browser extension reusing the collector (authenticated pages); hosted captures of authenticated pages; multiple service instances with shared job state.
 - **Later:**
   - repeated structure → Figma components;
   - CSS variables → Figma variables and tokens;
