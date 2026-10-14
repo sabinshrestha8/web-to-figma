@@ -21,7 +21,8 @@
     "w2f:login": "tsx packages/capture/src/login-cli.ts",
     "browsers": "pnpm --filter @w2f/capture exec playwright install chromium",
     "plugin:build": "pnpm --filter @w2f/figma-plugin build",
-    "web": "pnpm --filter @w2f/web dev"
+    "web": "pnpm --filter @w2f/web dev",
+    "server": "pnpm --filter @w2f/server start"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
