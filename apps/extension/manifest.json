@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Web to Figma",
+  "version": "0.1.0",
+  "description": "Capture the page you're looking at, logged in or not, for the Web to Figma plugin.",
+  "minimum_chrome_version": "120",
+  "action": { "default_title": "Capture this page for Figma (Alt+Shift+F)" },
+  "background": { "service_worker": "background.js" },
+  "permissions": ["activeTab", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "commands": {
+    "_execute_action": { "suggested_key": { "default": "Alt+Shift+F" }, "description": "Capture this page" }
+  }
+}

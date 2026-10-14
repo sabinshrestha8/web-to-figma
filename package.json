@@ -22,6 +22,7 @@
     "browsers": "pnpm --filter @w2f/capture exec playwright install chromium",
     "plugin:build": "pnpm --filter @w2f/figma-plugin build",
     "plugin:release": "pnpm --filter @w2f/figma-plugin release",
+    "extension:build": "pnpm --filter @w2f/extension build",
     "web": "pnpm --filter @w2f/web dev",
     "server": "pnpm --filter @w2f/server start"
   },

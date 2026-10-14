@@ -1,0 +1,21 @@
+{
+  "name": "@w2f/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@w2f/capture": "workspace:*",
+    "@w2f/convert": "workspace:*",
+    "@w2f/ir": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/chrome": "0.3.4",
+    "@types/node": "20.19.43",
+    "esbuild": "0.28.2",
+    "playwright": "1.64.0"
+  }
+}
