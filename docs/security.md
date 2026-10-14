@@ -44,9 +44,23 @@
 
 All limits live in one constants module per package. There are no magic numbers inline.
 
-## Hosted mode (not in V1)
+## Hosted mode (`apps/server`, see [hosting.md](hosting.md))
 
-App-level IP checks are TOCTOU-vulnerable to DNS rebinding: Chromium does its own resolution. A hosted deployment **requires** Chromium inside a container whose **egress firewall** drops loopback, private, link-local and metadata ranges at the network layer, plus per-tenant isolation. That's a prerequisite for ever enabling `allowPrivateNetworks: false` in production.
+The capture service takes URLs from anyone who can reach it, so it runs captures with `hosted: true` and `allowPrivateNetworks: false`:
+
+| Threat | Control |
+|---|---|
+| SSRF to localhost, private networks, cloud metadata | URL policy at submit (`400 URL_BLOCKED` before queueing) and again on every request and redirect hop in the page |
+| DNS rebinding (public answer at check time, private one at connect time) | Every browser request is made from Node by `pinnedFetch`: one lookup, every address vetted, the socket connects to the vetted address, no keep-alive, no redirect following (each hop goes back through the policy). Chromium runs with `--host-resolver-rules=MAP * ~NOTFOUND`, so it can't resolve or connect anywhere by itself |
+| WebSockets (can't be pinned from the route layer) | Closed in hosted mode |
+| Credential exposure | No cookies, saved sessions or auth headers are accepted; each capture gets a fresh, empty context. Logged-in pages are unsupported in hosted mode |
+| Script injection via the API | Strict schema; `click`/`waitFor` are Playwright selectors with length and count caps; no script parameter exists |
+| Resource exhaustion | Body ≤ 16 KB, request/headers timeouts (slow-loris), `W2F_MAX_RUNNING` + `W2F_MAX_QUEUED`, one active capture per client, hourly rate per client, the per-capture limits above, bundle cap `W2F_MAX_BUNDLE_MB`, response cap 50 MB per subrequest |
+| Data retention | Results only in memory, deleted `W2F_RESULT_TTL_MS` after finishing; nothing written to disk |
+| Abuse of an open endpoint | Optional bearer tokens (`W2F_API_TOKENS`, compared in constant time). The published plugin never embeds a token; users paste theirs, and it's kept in `figma.clientStorage` |
+| Leaking internals | Errors are fixed strings plus capture diagnostics; crashes become a generic `NAVIGATION_FAILED`; logs are JSON lines with paths (ids masked), hosts, status and timing, never full URLs, queries, bodies or tokens |
+
+Recommended in addition: an egress firewall at the network layer (drop loopback, RFC 1918, link-local, CGNAT and metadata ranges) as defense in depth, and `W2F_CHROMIUM_SANDBOX=1` where the container runtime allows Chromium's sandbox. Playwright's default disables it inside containers.
 
 ## Performance
 
