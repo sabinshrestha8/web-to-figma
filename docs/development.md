@@ -183,7 +183,7 @@ Reshaped from "Web app UX": drift (production vs baseline, production vs Figma) 
   - on the first run, saves the baseline;
   - otherwise diffs nodes (`diffCaptures`) and pixels (`comparePngs`, `diff.png`) against the baseline;
   - diffs the configured Figma frame when `FIGMA_TOKEN` is set, and the report says when it was skipped.
-- **Config** (Zod, strict): `pages[]` with `name` (path-safe, unique), an http(s) `url`, `viewport`, `storageState` (relative to the config), `waitFor`, `extraSettleMs`, `figma {file,node}`. Thresholds `maxChanges` / `maxPixelPercent` / `maxFigmaChanges`, top-level or per page. `out` (default `drift/`, relative to the config) and `blockPrivate`.
+- **Config** (Zod, strict): `pages[]` with `name` (path-safe, unique), an http(s) `url`, `viewport`, `storageState` (relative to the config), `click`, `waitFor`, `extraSettleMs`, `figma {file,node}`. Thresholds `maxChanges` / `maxPixelPercent` / `maxFigmaChanges`, top-level or per page. `out` (default `drift/`, relative to the config) and `blockPrivate`.
 - **Outputs** under `out/`:
   - `<page>/{baseline,latest}.{w2f.json,png}` and `diff.png`;
   - `history.jsonl`, one row per page per run;

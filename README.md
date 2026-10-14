@@ -26,6 +26,8 @@ pnpm w2f http://localhost:3000/ -v 1440x900 -v 390x844@2 -o my-page.w2f.json
 
 This writes one bundle with one capture per viewport, to `.data/my-page.w2f.json`: bare file names (here and in `compare`, `drift`, `figma-drift`) live in the gitignored `.data/`, and are read from there when not in the current folder. A path with a folder (`./x.w2f.json`, `out/x.png`) is used as given. Diagnostics go to stderr. `--block-private` applies the hosted-mode network policy.
 
+To capture a state that needs a click (a form dialog, a menu, a tab), pass `--click <selector>` (repeatable, clicked in order after the page settles), e.g. `--click 'button:has-text("Add employee")' --wait-for '[role=dialog]'`. Any Playwright selector works. A click that finds nothing within 15 s is a warning, and the page is captured without it. In the web UI, it's the **Click first** field.
+
 For pages that load content late, `--wait-for <selector>` (repeatable; all selectors share one 60 s budget) and `--extra-settle-ms <ms>` hold the capture until it's there.
 
 ### Capture a page behind a login
@@ -102,7 +104,7 @@ pnpm drift:run --accept        # make this run the new baseline (after an intend
 pnpm drift:run --page dashboard
 ```
 
-Results land in `.data/drift/`: `report.html` (changes grouped by kind with baseline/now crops, trend, gate result), `history.jsonl`, and per page the baseline, latest capture and `diff.png`. It exits 1 when a page fails or goes over a threshold (`maxChanges`, `maxPixelPercent`, `maxFigmaChanges`, top-level or per page), so it can gate CI. Figma is compared when `FIGMA_TOKEN` is set. To run it on a schedule, use cron, Task Scheduler or a CI job. `storageState` is relative to the config file.
+Results land in `.data/drift/`: `report.html` (changes grouped by kind with baseline/now crops, trend, gate result), `history.jsonl`, and per page the baseline, latest capture and `diff.png`. It exits 1 when a page fails or goes over a threshold (`maxChanges`, `maxPixelPercent`, `maxFigmaChanges`, top-level or per page), so it can gate CI. Figma is compared when `FIGMA_TOKEN` is set. To run it on a schedule, use cron, Task Scheduler or a CI job. `storageState` is relative to the config file. `click` (a list of selectors) watches a state behind a click, such as a form dialog.
 
 `ignore` lists CSS selectors of live content (clocks, dates, counters, charts). For those elements only position and size are compared, and their area is masked out of the pixel diff, so the gate stays quiet when only the data changed. A selector that is invalid or matches nothing is reported as `IGNORE_SELECTOR_UNUSED`. `pnpm w2f --ignore <selector>` does the same for one-off captures compared with `pnpm drift`.
 

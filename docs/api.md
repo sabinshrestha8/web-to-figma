@@ -10,7 +10,7 @@ All routes:
 POST /api/conversions
   body { targets: [{ url }] (1–10),
          viewports: [{ width 240–3840, height 240–4000, dpr 1|2 } | "1440x900" | "390x844@2"] (1–3),
-         options?: { waitFor?: string | string[], extraSettleMs?: 0–5000 },
+         options?: { click?: string[] (1–10, clicked in order after settling), waitFor?: string | string[], extraSettleMs?: 0–5000 },
          session?: true }
   202 { id }
   400 { diagnostics: Diagnostic[] }      invalid input or URL_BLOCKED
