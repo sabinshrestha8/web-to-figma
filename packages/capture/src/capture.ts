@@ -5,6 +5,7 @@ import { getBrowser } from "./browser.ts";
 import { type DecodedImage, decodeImages } from "./images.ts";
 import { collectorHandle, inPage } from "./in-page.ts";
 import { LIMITS } from "./limits.ts";
+import { BlockedAddressError, pinnedFetch } from "./pinned-fetch.ts";
 import { createPolicy, type Policy } from "./policy.ts";
 import { renderRasters } from "./rasters.ts";
 import type { StorageState } from "./storage-state.ts";
@@ -35,6 +36,14 @@ export interface CaptureOptions {
   extraSettleMs?: number;
   /** CSS selectors of live content (clocks, charts): their nodes get `ignore`, see DriftConfig. */
   ignoreSelectors?: string[];
+  /**
+   * Hosted mode (apps/server): every request is made from Node through `pinnedFetch` (DNS checked
+   * and connected in one step), Chromium itself resolves no host names, WebSockets are refused.
+   * Combine with `allowPrivateNetworks: false`.
+   */
+  hosted?: boolean;
+  /** Aborting closes the capture's browser context; the capture then fails without a result. */
+  signal?: AbortSignal;
 }
 
 export interface CaptureOutput {
@@ -90,7 +99,41 @@ interface NetworkEvents {
  * Subresource hops are followed here; main-frame hops are aborted and re-navigated, so each one is
  * a fresh, routed request and the page keeps its real URL.
  */
-function guardNetwork(context: BrowserContext, page: Page, policy: Policy, on: NetworkEvents) {
+function guardNetwork(
+  context: BrowserContext,
+  page: Page,
+  policy: Policy,
+  on: NetworkEvents,
+  pinned: { allowPrivateNetworks: boolean } | null,
+) {
+  /** One hop without following redirects: Playwright's fetch locally, the DNS-pinned one when hosted. */
+  const fetchHop = async (route: Route, target: string, headers: Record<string, string>) => {
+    if (!pinned) {
+      const response = await route.fetch({ url: target, headers, maxRedirects: 0 });
+      return {
+        status: response.status(),
+        headers: response.headers(),
+        body: () => response.body(),
+        fulfill: () => route.fulfill({ response }),
+      };
+    }
+    const req = route.request();
+    const r = await pinnedFetch({
+      url: target,
+      method: req.method(),
+      headers,
+      body: req.postDataBuffer(),
+      allowPrivateNetworks: pinned.allowPrivateNetworks,
+      timeoutMs: LIMITS.navigationMs,
+      maxBytes: LIMITS.maxResponseBytes,
+    });
+    return {
+      status: r.status,
+      headers: r.headers,
+      body: async () => r.body,
+      fulfill: () => route.fulfill({ status: r.status, headers: r.headers, body: r.body }),
+    };
+  };
   const handle = async (route: Route) => {
     const req = route.request();
     const nav = req.isNavigationRequest() && req.frame() === page.mainFrame();
@@ -108,17 +151,19 @@ function guardNetwork(context: BrowserContext, page: Page, policy: Policy, on: N
         delete headers.cookie;
         delete headers.authorization;
       }
-      const response = await route
-        .fetch({ url: target, headers, maxRedirects: 0 })
-        .catch((e: unknown) => e as Error);
+      const response = await fetchHop(route, target, headers).catch((e: unknown) => e as Error);
+      if (response instanceof BlockedAddressError) {
+        on.blocked(diag("URL_BLOCKED", response.message), nav);
+        return route.abort("blockedbyclient");
+      }
       if (response instanceof Error) return route.abort("failed"); // same as the browser failing it
       const location =
-        response.status() >= 300 && response.status() < 400 ? response.headers().location : undefined;
+        response.status >= 300 && response.status < 400 ? response.headers.location : undefined;
       if (!location) {
-        const type = response.headers()["content-type"] ?? "";
+        const type = response.headers["content-type"] ?? "";
         if (req.resourceType() === "image" || type.startsWith("image/"))
           on.image(req.url(), await response.body());
-        return route.fulfill({ response });
+        return response.fulfill();
       }
       const next = new URL(location, target).href;
       const verdict = await policy.check(next, !nav);
@@ -137,6 +182,8 @@ function guardNetwork(context: BrowserContext, page: Page, policy: Policy, on: N
   return Promise.all([
     context.route("**/*", handle),
     context.routeWebSocket(/.*/, async (ws) => {
+      // Hosted: Chromium can't resolve hosts and a socket can't be pinned from here, so none.
+      if (pinned) return ws.close();
       const blocked = await policy.check(ws.url().replace(/^ws/, "http"), true);
       if (blocked) {
         on.blocked(blocked, false);
@@ -347,7 +394,8 @@ export async function capture(
   const first = await policy.check(url, false);
   if (first) return { ok: false, diagnostics: [first] };
 
-  const browser = await getBrowser();
+  if (options.signal?.aborted) return { ok: false, diagnostics: [] };
+  const browser = await getBrowser(options.hosted === true);
   const context = await browser.newContext({
     viewport: { width: viewport.width, height: viewport.height },
     deviceScaleFactor: viewport.dpr,
@@ -371,25 +419,31 @@ export async function capture(
     context.on("request", () => activity.inflight++);
     context.on("requestfinished", () => activity.inflight--);
     context.on("requestfailed", () => activity.inflight--);
-    await guardNetwork(context, page, policy, {
-      blocked: (d, isNav) => {
-        if (isNav) nav.blocked ??= d;
-        else if (!blockedHosts.has(d.message)) {
-          blockedHosts.add(d.message);
-          diagnostics.push({ ...d, severity: "warning", message: `blocked subresource: ${d.message}` });
-        }
+    await guardNetwork(
+      context,
+      page,
+      policy,
+      {
+        blocked: (d, isNav) => {
+          if (isNav) nav.blocked ??= d;
+          else if (!blockedHosts.has(d.message)) {
+            blockedHosts.add(d.message);
+            diagnostics.push({ ...d, severity: "warning", message: `blocked subresource: ${d.message}` });
+          }
+        },
+        redirect: (next) => {
+          nav.redirect = next;
+        },
+        image: (url, body) => {
+          // Over the limits: not kept, so decodeImages reports it.
+          if (body.length > LIMITS.maxAssetBytes || imageBytes + body.length > LIMITS.maxImageStoreBytes)
+            return;
+          imageBytes += body.length - (fetchedImages.get(url)?.length ?? 0);
+          fetchedImages.set(url, body);
+        },
       },
-      redirect: (next) => {
-        nav.redirect = next;
-      },
-      image: (url, body) => {
-        // Over the limits: not kept, so decodeImages reports it.
-        if (body.length > LIMITS.maxAssetBytes || imageBytes + body.length > LIMITS.maxImageStoreBytes)
-          return;
-        imageBytes += body.length - (fetchedImages.get(url)?.length ?? 0);
-        fetchedImages.set(url, body);
-      },
-    });
+      options.hosted ? { allowPrivateNetworks: options.allowPrivateNetworks ?? true } : null,
+    );
 
     const isMainNav = (r: Request) => r.isNavigationRequest() && r.frame() === page.mainFrame();
     page.on("framenavigated", (f) => {
@@ -479,12 +533,19 @@ export async function capture(
     return { snapshot, screenshot, rasters, images, diagnostics };
   };
 
+  // Closing the context makes whatever the capture awaits reject; that failure is the cancellation.
+  const cancel = () => {
+    context.close().catch((e: unknown) => console.error("closing a cancelled capture:", String(e)));
+  };
+  options.signal?.addEventListener("abort", cancel, { once: true });
   try {
     return { ok: true, value: await withTimeout(run(), LIMITS.jobMs, "capture") };
   } catch (e) {
+    if (options.signal?.aborted) return { ok: false, diagnostics };
     if (e instanceof ConversionError) return { ok: false, diagnostics: [...diagnostics, e.diagnostic] };
     throw e;
   } finally {
+    options.signal?.removeEventListener("abort", cancel);
     await context.close();
   }
 }

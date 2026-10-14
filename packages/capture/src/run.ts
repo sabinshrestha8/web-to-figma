@@ -49,6 +49,7 @@ export async function convertUrls(job: ConvertJob): Promise<Result<Bundle>> {
 
   for (const url of job.urls) {
     for (const viewport of job.viewports) {
+      if (job.signal?.aborted) break;
       const captureId = `c${++n}`;
       job.onProgress?.(n - 1, total, url);
       const result = await capture(url, viewport, job);

@@ -24,6 +24,8 @@ export const LIMITS = {
   decodeMs: 10_000,
   /** Image response bytes kept in memory per capture, for decoding. */
   maxImageStoreBytes: 100_000_000,
+  /** Hosted mode: decoded body cap per network response (HTML, scripts, styles, images). */
+  maxResponseBytes: 50_000_000,
   /** How long `waitForSelector` waits for slow content before capturing as-is with a warning. */
   waitForSelectorMs: 60_000,
 } as const;
