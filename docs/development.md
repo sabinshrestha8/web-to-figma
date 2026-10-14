@@ -38,6 +38,7 @@ Build a thin end-to-end slice early, then widen fidelity one area at a time.
 | 7b | Web app UX | Next.js flow, job runner, API, guard, preview, diagnostics table, multi-route/viewport | The full user journey works from a clean clone |
 | 8 | Hardening | Full fixture suite, hostile fixtures, perf budgets, security tests, compare script | All fixtures within thresholds; hostile tests pass |
 | 9 | V1 release | Production config, user and dev docs, plugin publish prep, release checklist | Fresh-machine install from the docs succeeds |
+| 10 | Hosted plugin flow | Capture service (`apps/server`), DNS-pinned hosted capture, plugin URL import, Docker + release build | URL → Figma from the plugin alone, against a running service |
 
 ## Definition of Done (every phase)
 
@@ -269,3 +270,13 @@ Designers can't use the terminal, and logged-in pages were CLI-only even with th
 - **Tests:** store states and file handling with fake saves; redaction proven with a known token (metadata contains domains, never the token); handler codes (202/429/400/404, missing-file 400); an integration test that seeds a session through the real `saveLogin` and captures the `/auth` fixture as Ada with the token absent from the bundle.
 - **Caught by the tests:** the new integration test first failed with `PAGE_REDIRECTED` to `/landing` — the seeded cookie carried the wrong value. The fixture guard only accepts `fixture-session-token`; the test now uses it. The wiring was always right.
 
+### Phase 10: Hosted plugin flow (2026-10-14)
+
+Community users should be able to import a URL from the plugin alone. The local web app can't be hosted (127.0.0.1 guard, headed login, disk jobs), so there's a new standalone service.
+
+- **Hosted capture mode** (`packages/capture`): `pinnedFetch` makes each browser request from Node with one vetted DNS answer (the rebinding fix: the check and the connect use the same address), no keep-alive and no redirect following. Chromium runs with `--host-resolver-rules=MAP * ~NOTFOUND`, so it has no network of its own. WebSockets are closed. `signal` cancels a capture by closing its context. Local mode is unchanged (parity test on image-heavy).
+- **`apps/server`** (node:http, no framework): `POST/GET/DELETE /api/captures`, `/bundle` (gzip), `/healthz`, CORS `*` for Figma's null origin. In-memory queue (`W2F_MAX_RUNNING`/`W2F_MAX_QUEUED`), one active capture per client, hourly rate, optional bearer tokens, a TTL on results, a bundle cap, and redacted JSON logs. Dockerfile on `mcr.microsoft.com/playwright:v1.64.0-noble`.
+- **Plugin:** URL, viewport and options UI; `remote.ts` client (server-reported progress only, cancel → `DELETE`, readable errors); `readBundle` shared with drag-and-drop; token in `figma.clientStorage`; builds immediately when no font is substituted. `build.mjs --release` bakes in `W2F_API_URL` (https, non-local) and writes a manifest allowing only that origin.
+- **Found while verifying:** (1) the queue check refused a job with a free slot when `W2F_MAX_QUEUED=0`; (2) a sandboxed iframe without `allow-forms` never fires `submit`, so the plugin's Import button did nothing in a null-origin iframe. It's a click handler now; (3) `node --import tsx` resolves from the working directory, so the Dockerfile runs from `apps/server`.
+- **Verified:** server unit (16) and end-to-end (2, real Chromium on the fixture site) tests; plugin client tests; the built `ui.html` driven in a sandboxed null-origin iframe against the running service (import + dialog click, invalid URL, metadata IP → `URL_BLOCKED`, cancel in 195 ms); a production-style filtered install, started like the image's CMD, captured `https://example.com` in 3.5 s.
+- **Not verified here:** the Docker image (no Docker on this machine); the plugin inside Figma itself; any deployment or Community publish.
