@@ -39,6 +39,7 @@ Build a thin end-to-end slice early, then widen fidelity one area at a time.
 | 8 | Hardening | Full fixture suite, hostile fixtures, perf budgets, security tests, compare script | All fixtures within thresholds; hostile tests pass |
 | 9 | V1 release | Production config, user and dev docs, plugin publish prep, release checklist | Fresh-machine install from the docs succeeds |
 | 10 | Hosted plugin flow | Capture service (`apps/server`), DNS-pinned hosted capture, plugin URL import, Docker + release build | URL → Figma from the plugin alone, against a running service |
+| 11 | Browser extension | Capture the open tab (logged in, dialogs open) with the same collector; plugin paste import | A logged-in fixture page → bundle → plugin, through the loaded extension |
 
 ## Definition of Done (every phase)
 
@@ -294,3 +295,20 @@ A service on your own machine can now use the saved login: `W2F_SESSION=.data/au
 - **Verified:**
   - the built plugin UI in a null-origin iframe: a 401 message without the token; with it, the logged-in fixture;
   - the user's real leave page, through a service using their saved login (no private networks), with the two Assign clicks: done in 18.6 s, no redirect, 1440×900, and the MUI dialog present. Only structure was inspected; the result lived only in that service's memory.
+
+### Phase 11: Browser extension (2026-10-14)
+
+A published plugin can't capture logged-in pages through a deployed service, and most real pages are behind a login. The extension captures the tab the user already has open, with the collector the CLI uses.
+
+- **`apps/extension`** (Chrome MV3, esbuild). The toolbar button or Alt+Shift+F does the following:
+  1. `captureVisibleTab`;
+  2. `collector.js` in the isolated world;
+  3. `collect()`;
+  4. a `result.html` tab takes the capture once from the service worker's memory.
+- **Assembly** (`bundle.ts`, pure with injected browser parts): images are fetched with the user's cookies and decoded by the collector's `decodeImage`. Raster islands are cropped from the screenshot (on-screen only). Then `snapshotToIR` → `parseDocument`. **Download .w2f.json** and **Copy for the plugin** finish it. What it can't do (off-screen islands, tiles, `blob:` images) is reported as `ASSET_REJECTED`.
+- **Shared code:** `sniffImage` moved to a Buffer-free `capture/src/sniff.ts`. `@w2f/capture` exports `./collector`, `./limits` and `./sniff`. The test snapshot builders moved to `convert/src/testing.ts`.
+- **Plugin:** Ctrl+V imports a pasted bundle (pastes into its fields are left alone), and the hints point to the extension for logged-in pages.
+- **Verified:**
+  - unit tests (4) and integration tests (2: the loaded extension in Playwright's Chromium on the logged-in `/auth` fixture and on image-heavy, downloading through the real button). Mutation-checked: breaking image fetching fails the image test;
+  - end to end in one browser: the dialog fixture with the dialog open → extension → **Copy** → Ctrl+V into the built plugin UI in a sandboxed null-origin iframe → the plugin got the bundle and started its font check. The texts match a CLI `--click` capture of the same dialog.
+- **Not verified here:** Edge, a real Ctrl+V inside Figma desktop, and the user's real logged-in app through the extension. Not published to the Chrome Web Store (no icons yet; [release.md](release.md#publish-the-extension)).
