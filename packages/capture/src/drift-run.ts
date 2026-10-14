@@ -25,6 +25,8 @@ const Page = z.strictObject({
   viewport: z.string().default("1440x900"),
   /** Saved by `pnpm w2f:login`; relative to the config file. */
   storageState: z.string().optional(),
+  /** Clicked in order after the page settles (open a dialog to watch it). */
+  click: z.array(z.string().trim().min(1).max(500)).max(10).optional(),
   waitFor: z.array(z.string().trim().min(1).max(500)).max(10).optional(),
   extraSettleMs: z.number().int().min(0).max(5000).optional(),
   /** CSS selectors of live content (clocks, charts): only their position and size are compared. */
@@ -126,6 +128,7 @@ async function runPage(
     viewports: [parseViewport(page.viewport)],
     allowPrivateNetworks: !config.blockPrivate,
     ...(page.storageState ? { storageState: loadStorageState(resolve(dirs.config, page.storageState)) } : {}),
+    ...(page.click?.length ? { clickSelectors: page.click } : {}),
     ...(page.waitFor?.length ? { waitForSelectors: page.waitFor } : {}),
     ...(page.extraSettleMs !== undefined ? { extraSettleMs: page.extraSettleMs } : {}),
     ...(page.ignore?.length ? { ignoreSelectors: page.ignore } : {}),

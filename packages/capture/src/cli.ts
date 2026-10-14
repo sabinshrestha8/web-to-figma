@@ -6,12 +6,13 @@ import { outPath } from "./paths.ts";
 import { convertUrls, parseViewport } from "./run.ts";
 import { loadStorageState } from "./storage-state.ts";
 
-const USAGE = `usage: pnpm w2f <url...> [-v 1440x900[@2]]... [-o out.w2f.json] [--storage-state auth.json] [--block-private] [--wait-for selector] [--extra-settle-ms 0-5000] [--ignore selector]
+const USAGE = `usage: pnpm w2f <url...> [-v 1440x900[@2]]... [-o out.w2f.json] [--storage-state auth.json] [--block-private] [--click selector] [--wait-for selector] [--extra-settle-ms 0-5000] [--ignore selector]
 
   -v, --viewport       viewport WIDTHxHEIGHT[@DPR], repeatable (default 1440x900)
   -o, --out            bundle path (default capture.w2f.json); a bare name goes in the gitignored .data/
       --storage-state  start logged in, from a file saved by \`pnpm w2f:login <login url>\`
       --block-private  refuse loopback/private addresses (hosted-mode policy)
+      --click          click this first (a button that opens a dialog); repeatable, in order
       --wait-for       capture only after this selector exists (slow dashboards; repeatable)
       --extra-settle-ms  extra quiet wait after settling, 0-5000
       --ignore         CSS selector of live content (clock, chart): drift compares only its bounds; repeatable`;
@@ -33,6 +34,7 @@ async function main() {
       out: { type: "string", short: "o", default: "capture.w2f.json" },
       "block-private": { type: "boolean", default: false },
       "storage-state": { type: "string" },
+      click: { type: "string", multiple: true },
       "wait-for": { type: "string", multiple: true },
       "extra-settle-ms": { type: "string" },
       ignore: { type: "string", multiple: true },
@@ -47,6 +49,9 @@ async function main() {
   for (const s of waitForSelectors) {
     if (s.length > 500) throw new Error(`bad --wait-for selector, expected 1-500 characters`);
   }
+  const clickSelectors = (values.click ?? []).map((s) => s.trim()).filter((s) => s !== "");
+  if (clickSelectors.some((s) => s.length > 500))
+    throw new Error(`bad --click selector, expected 1-500 characters`);
 
   const started = Date.now();
   const result = await convertUrls({
@@ -54,6 +59,7 @@ async function main() {
     viewports: (values.viewport ?? ["1440x900"]).map(parseViewport),
     allowPrivateNetworks: !values["block-private"],
     ...(values["storage-state"] ? { storageState: loadStorageState(values["storage-state"]) } : {}),
+    ...(clickSelectors.length ? { clickSelectors } : {}),
     ...(waitForSelectors.length ? { waitForSelectors } : {}),
     ...(values.ignore?.length ? { ignoreSelectors: values.ignore } : {}),
     ...(values["extra-settle-ms"] !== undefined
