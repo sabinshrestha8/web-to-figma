@@ -62,6 +62,20 @@ The capture service takes URLs from anyone who can reach it, so it runs captures
 
 Recommended in addition: an egress firewall at the network layer (drop loopback, RFC 1918, link-local, CGNAT and metadata ranges) as defense in depth, and `W2F_CHROMIUM_SANDBOX=1` where the container runtime allows Chromium's sandbox. Playwright's default disables it inside containers.
 
+## Browser extension (`apps/extension`, see [extension.md](extension.md))
+
+The extension reads pages the user is already logged in to, so it must not become a way for a page to read anything else:
+
+| Threat | Control |
+|---|---|
+| A page tampering with the collector, or reading its results | The collector runs in Chrome's isolated world (its own JS globals); results go to the extension's own service worker and result page, never back to the page |
+| A page driving a capture | Only the toolbar button or shortcut starts one. The extension has no content scripts listening, no `externally_connectable`, and the service worker answers only messages from the extension itself |
+| Credential exposure | No cookie or storage value is read into the bundle. Images are fetched with the browser's cookies, just as the tab already did. Nothing is sent to any server |
+| Hostile image or SVG bytes | Sniffed by content (the `Content-Type` isn't trusted); decoded by the browser in the extension page as `<img>` (SVG-as-image never runs script); the same size, pixel and per-capture limits as the CLI |
+| Data retention | The capture lives in service-worker memory until the result tab takes it (one use), and the bundle only in that tab until the user downloads or copies it |
+
+`<all_urls>` host access is broad, but it is needed to read images from any origin; the extension makes no other requests. Store review will ask for that justification ([release.md](release.md#publish-the-extension)).
+
 ## Performance
 
 - **Browser.** One Chromium, launched lazily and kept on `globalThis` (survives Next hot reload). About 1 s once, then each job gets a new context in about 50 ms.

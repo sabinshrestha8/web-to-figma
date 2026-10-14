@@ -64,7 +64,11 @@ To capture a logged-in page from the UI instead, open the **Saved session** card
 W2F_ALLOW_PRIVATE=1 pnpm server   # the capture service on http://localhost:8787 (ALLOW_PRIVATE only for localhost pages)
 ```
 
-In the plugin, enter a URL, pick a viewport and press **Import website**. The service renders the page, the plugin downloads the bundle and builds it, with real progress and a Cancel button. **Options** takes click-first and wait-for selectors (for a dialog) and an access token. Deployed, the same service lets Community users import public pages with nothing installed. For pages behind a login, start it with your saved login and a token (`W2F_SESSION=.data/auth.json W2F_API_TOKENS=<token> pnpm server`), then paste the token under **Options → Access token** ([details](docs/hosting.md#pages-behind-a-login-service-on-your-own-machine)). Deploying, env vars, the API and publishing: [docs/hosting.md](docs/hosting.md).
+In the plugin, enter a URL, pick a viewport and press **Import website**. The service renders the page, the plugin downloads the bundle and builds it, with real progress and a Cancel button. **Options** takes click-first and wait-for selectors (for a dialog) and an access token. Deployed, the same service lets Community users import public pages with nothing installed. For pages behind a login, start it with your saved login and a token (`W2F_SESSION=.data/auth.json W2F_API_TOKENS=<token> pnpm server`), then paste the token under **Options → Access token** ([details](docs/hosting.md#pages-behind-a-login-service-on-your-own-machine)), or use the browser extension (next section). Deploying, env vars, the API and publishing: [docs/hosting.md](docs/hosting.md).
+
+### Capture the page you're looking at (browser extension)
+
+For logged-in pages, open dialogs and menus, use the Chrome/Edge extension. Run `pnpm extension:build`, then in `chrome://extensions` choose **Load unpacked** with `apps/extension/dist`. On the page, click its toolbar button (or press **Alt+Shift+F**). The result tab gives you **Download .w2f.json**, or **Copy for the plugin** followed by **Ctrl+V** in the plugin. It uses your browser's own login, and nothing leaves your machine. Details and differences from the CLI capture: [docs/extension.md](docs/extension.md).
 
 The plugin builds one frame per capture inside a Section. Each frame contains a hidden, locked **Reference screenshot** layer: unhide it to compare against the browser.
 
@@ -127,6 +131,7 @@ Results land in `.data/drift/`: `report.html` (changes grouped by kind with base
 | [diagnostics.md](docs/diagnostics.md) | Error/warning codes, observability |
 | [testing.md](docs/testing.md) | Test levels, fixtures, visual regression |
 | [api.md](docs/api.md) | Local web app HTTP API |
+| [extension.md](docs/extension.md) | Browser extension: capture the open tab (logged-in pages, dialogs) |
 | [hosting.md](docs/hosting.md) | Hosted capture service: API, run, deploy, env vars, plugin release |
 | [release.md](docs/release.md) | V1 release checklist, fresh-machine install, plugin publish |
 | [development.md](docs/development.md) | Workflow, phase plan, Definition of Done, phase log |

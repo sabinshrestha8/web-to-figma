@@ -47,6 +47,15 @@ desktop via **Plugins → Development → Import plugin from manifest…** with
    keep the old service running until users have updated.
 7. Keep `manifest.json` (the `(dev)` one) for local development.
 
+## Publish the extension
+
+Not published yet; users load it unpacked ([extension.md](extension.md)). To list it on the Chrome Web Store:
+1. Add icons (16, 48 and 128 px) to `apps/extension/manifest.json`; the store requires a 128 px icon.
+2. `pnpm extension:build`, then zip the *contents* of `apps/extension/dist` (with `manifest.json` at the root of the zip).
+3. In the Chrome Web Store developer dashboard: upload the zip, and fill in the listing, the privacy practices and a privacy policy. Nothing is collected or sent: the capture stays on the device until the user downloads or copies it.
+4. Justify each permission: `activeTab` + `scripting` to read the page the user captures; `<all_urls>` host access to read that page's images from any origin with the user's cookies. Broad host access gets a longer review.
+5. Updates: bump `version` in the manifest, rebuild, upload.
+
 ## Post-release
 
 - Update `docs/development.md` phase log, `docs/architecture.md` roadmap (V1.1, V2).

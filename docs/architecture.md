@@ -91,7 +91,9 @@ A CLI pipeline plus the Figma plugin sandbox. There's no server, database, queue
 | `packages/convert` | anywhere | Pure: `snapshotToIR`, CSS parsers, `flatten`, layout inference + Auto Layout simulator, z-order | Phase 2+ |
 | `packages/preview` | browser/Node | `renderIRToHtml(ir)`, used by the visual regression tests (a future web UI would reuse it for previews) | Phase 3 |
 | `apps/web` | Node + browser | UI, API, job store | Phase 7b ✓ |
-| `apps/figma-plugin` | Figma | Bundle import, fonts, node building, post-build checks | Phase 2+ |
+| `apps/figma-plugin` | Figma | Bundle import (file, paste, URL), fonts, node building, post-build checks | Phase 2+ |
+| `apps/server` | Node | Hosted capture service behind the plugin's URL import | Phase 10 ✓ |
+| `apps/extension` | Chrome MV3 | Captures the open tab with the same collector; assembles the bundle in an extension page ([extension.md](extension.md)) | Phase 11 ✓ |
 | `fixtures/site` | Node | Next.js fixture app (feature, layout, image, live and hostile pages) with expectations | Phase 2+ |
 
 Packages are created in the phase that first needs them. Nothing is scaffolded ahead of time.
@@ -116,12 +118,12 @@ Packages are created in the phase that first needs them. Nothing is scaffolded a
 |---|---|
 | A. In-browser DOM inspection | **Used** as the extraction mechanism ([ADR-002](adr/002-extraction-mechanism.md)) |
 | B. Playwright/Chromium | **Chosen runtime** |
-| C. Browser extension | V2, for authenticated pages; reuses the collector unchanged |
+| C. Browser extension | **Added in Phase 11** for authenticated pages and open dialogs; reuses the collector unchanged ([extension.md](extension.md)) |
 | D. Next.js integration | Rejected: couples us to Next internals, and it's the same DOM anyway |
 | E. User-provided URL | **Chosen input** |
 | F. Local project integration | Deferred: runs untrusted scripts |
 | G. Figma plugin fetching the URL | Rejected: can't read cross-origin DOM, and framing gets blocked |
-| H. Hybrid | B + E now, C later |
+| H. Hybrid | B + E for URLs, C for the user's own tab |
 
 ## 9. Technology
 
@@ -149,6 +151,8 @@ Vitest is pinned to 4.x because Vitest 5 requires Node ≥ 22.12. We'll move to 
 web-to-figma/
   apps/web/              Next.js UI + API                    (Phase 7b ✓)
   apps/figma-plugin/     manifest, code.ts, ui, map/*.ts     (Phase 2)
+  apps/server/           hosted capture service              (Phase 10)
+  apps/extension/        Chrome MV3 extension                (Phase 11)
   packages/ir/           schema, diagnostics, migrations, bundle, validate
   packages/capture/      browser, policy, settle, assets, collector, cli
   packages/convert/      snapshot-to-ir, css parsers, flatten, layout, order
@@ -180,7 +184,7 @@ Each package boundary is a **runtime** boundary: page, Node, pure, or Figma. `co
 
 - Everything in the Partial and Unsupported columns of §3.
 - One settled state per capture (no hover or open states).
-- No auth beyond a pasted cookie.
+- Logged-in pages need a saved session (CLI, web UI, a local service) or the browser extension; a deployed service captures public pages only.
 - No components or variables.
 - One frame per viewport (no responsive reconstruction).
 - Local use only.
@@ -190,7 +194,8 @@ Each package boundary is a **runtime** boundary: page, Node, pure, or Figma. `co
 
 - **Done (Phase 10):** the plugin imports a URL directly through the hosted capture service ([hosting.md](hosting.md)); this replaced the planned pull-by-code pairing.
 - **V1.1:** pseudo-elements via CDP; project-folder mode.
-- **V2:** browser extension reusing the collector (authenticated pages); hosted captures of authenticated pages; multiple service instances with shared job state.
+- **Done (Phase 11):** a browser extension reusing the collector captures the open tab, logged in or not ([extension.md](extension.md)).
+- **V2:** extension → plugin without a file or clipboard (a share code through the service); full-page islands in the extension; Chrome Web Store listing; multiple service instances with shared job state.
 - **Later:**
   - repeated structure → Figma components;
   - CSS variables → Figma variables and tokens;
