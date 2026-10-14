@@ -1,0 +1,9 @@
+**/node_modules
+**/.next
+**/dist
+**/release
+.data
+.git
+coverage
+*.w2f.json
+**/.env
