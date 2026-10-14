@@ -91,17 +91,21 @@ function load(json: unknown, name: string) {
   send({ type: "load", ir: r.ir, assets: r.assets });
 }
 
-async function loadFile(file: File) {
-  show(`Reading ${file.name}…`);
+function loadText(text: string, name: string) {
   let json: unknown;
   try {
-    json = JSON.parse(await file.text());
+    json = JSON.parse(text);
   } catch {
     return show("Not a JSON file.", [
-      { code: "BUNDLE_INVALID", severity: "fatal", message: `${file.name} is not valid JSON` },
+      { code: "BUNDLE_INVALID", severity: "fatal", message: `${name} is not valid JSON` },
     ]);
   }
-  load(json, file.name);
+  load(json, name);
+}
+
+async function loadFile(file: File) {
+  show(`Reading ${file.name}…`);
+  loadText(await file.text(), file.name);
 }
 
 const lines = (t: HTMLTextAreaElement) =>
@@ -180,6 +184,15 @@ drop.addEventListener("drop", (e) => {
   drop.classList.remove("over");
   const file = e.dataTransfer?.files[0];
   if (file) void loadFile(file);
+});
+
+// A bundle copied by the browser extension ("Copy for the plugin"). Pastes into fields stay theirs.
+document.addEventListener("paste", (e) => {
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+  const text = e.clipboardData?.getData("text/plain").trim();
+  if (!text?.startsWith("{")) return;
+  e.preventDefault();
+  loadText(text, "The pasted bundle");
 });
 
 exportButton.addEventListener("click", () => send({ type: "export" }));

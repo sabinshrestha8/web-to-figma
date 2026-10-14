@@ -181,8 +181,9 @@
             <input id="token" type="password" autocomplete="off" />
           </label>
           <p class="hint">
-            A hosted service captures public pages only. For pages behind a login, run the service on
-            your machine with your saved login (W2F_SESSION) and paste its token here.
+            A hosted service captures public pages only. For pages behind a login, use the Web to Figma
+            browser extension on the open page, or run the service on your machine with your saved
+            login (W2F_SESSION) and paste its token here.
           </p>
         </div>
       </details>
@@ -202,7 +203,8 @@
     <ul id="diagnostics"></ul>
 
     <label id="drop">
-      Or drop a <b>.w2f.json</b> bundle here (or click to choose one).
+      Or drop a <b>.w2f.json</b> bundle here (or click to choose one), or paste one copied from
+      the browser extension (Ctrl+V).
       <input id="file" type="file" accept=".json,application/json" />
     </label>
     <button id="export" type="button" title="For pnpm compare against the reference screenshot" hidden>
