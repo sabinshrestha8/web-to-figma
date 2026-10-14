@@ -107,6 +107,18 @@ describe("POST /api/conversions", () => {
     expect(seen).toEqual(["http://127.0.0.1:4400/landing"]);
   });
 
+  it("passes click selectors through to the capture", async () => {
+    const seen: (string[] | undefined)[] = [];
+    const store = createStore(async (job) => {
+      seen.push(job.clickSelectors);
+      return { ok: false, diagnostics: [] };
+    });
+    const body = { ...valid, options: { click: ['button:has-text("Add")'] } };
+    expect((await postConversions(post("/api/conversions", body), store, logins())).status).toBe(202);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(seen).toEqual([['button:has-text("Add")']]);
+  });
+
   it("rejects the third concurrent job with 429", async () => {
     const store = createStore(never);
     const loginStore = logins();

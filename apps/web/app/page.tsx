@@ -16,6 +16,7 @@ interface Preview {
 export default function Home() {
   const [urls, setUrls] = useState("http://localhost:3000/");
   const [viewports, setViewports] = useState("1440x900, 390x844@2");
+  const [click, setClick] = useState("");
   const [waitFor, setWaitFor] = useState("");
   const [extraSettleMs, setExtraSettleMs] = useState("");
   const [jobId, setJobId] = useState<string | null>(null);
@@ -148,6 +149,8 @@ export default function Home() {
         targets,
         viewports: vps,
         options: {
+          // One selector, not a comma list: commas are part of CSS selector syntax.
+          ...(click.trim() !== "" ? { click: [click.trim()] } : {}),
           ...(wait.length > 0 ? { waitFor: wait } : {}),
           ...(ms === undefined ? {} : { extraSettleMs: ms }),
         },
@@ -272,13 +275,23 @@ export default function Home() {
             className="mt-1 w-full rounded-md border border-slate-300 p-2 font-mono text-sm"
           />
         </label>
-        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
           <label className="block text-sm font-semibold">
             Viewports (up to 3)
             <input
               value={viewports}
               onChange={(e) => setViewports(e.target.value)}
               placeholder="1440x900, 390x844@2"
+              className="mt-1 w-full rounded-md border border-slate-300 p-2 font-mono text-sm"
+            />
+          </label>
+          <label className="block text-sm font-semibold">
+            Click first (optional)
+            <input
+              value={click}
+              onChange={(e) => setClick(e.target.value)}
+              placeholder='button:has-text("Add")'
+              title="Clicked after the page settles, e.g. the button that opens a form dialog"
               className="mt-1 w-full rounded-md border border-slate-300 p-2 font-mono text-sm"
             />
           </label>

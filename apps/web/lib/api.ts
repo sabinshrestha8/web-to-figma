@@ -24,6 +24,7 @@ export const conversionInput = z.object({
     .max(3),
   options: z
     .object({
+      click: z.array(z.string().trim().min(1).max(500)).min(1).max(10).optional(),
       waitFor: z.union([z.string().min(1), z.array(z.string().min(1)).min(1).max(10)]).optional(),
       extraSettleMs: z.number().int().min(0).max(5000).optional(),
     })
@@ -52,6 +53,7 @@ function normalize(input: ConversionInput): NormalizedInput | { error: string } 
   return {
     urls: input.targets.map((t) => t.url),
     viewports,
+    ...(input.options?.click === undefined ? {} : { clickSelectors: input.options.click }),
     ...(wait === undefined ? {} : { waitForSelectors: typeof wait === "string" ? [wait] : wait }),
     ...(input.options?.extraSettleMs === undefined ? {} : { extraSettleMs: input.options.extraSettleMs }),
   };

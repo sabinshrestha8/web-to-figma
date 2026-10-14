@@ -40,6 +40,7 @@ export interface JobStatus {
 export interface NormalizedInput {
   urls: string[];
   viewports: Viewport[];
+  clickSelectors?: string[];
   waitForSelectors?: string[];
   extraSettleMs?: number;
   storageState?: StorageState;
@@ -121,6 +122,7 @@ async function run(rec: JobRecord, input: NormalizedInput, execute: Execute, tot
     const result = await execute({
       urls: input.urls,
       viewports: input.viewports,
+      ...(input.clickSelectors === undefined ? {} : { clickSelectors: input.clickSelectors }),
       ...(input.waitForSelectors === undefined ? {} : { waitForSelectors: input.waitForSelectors }),
       ...(input.extraSettleMs === undefined ? {} : { extraSettleMs: input.extraSettleMs }),
       ...(input.storageState === undefined ? {} : { storageState: input.storageState }),
