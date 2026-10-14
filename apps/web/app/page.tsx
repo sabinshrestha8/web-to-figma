@@ -141,6 +141,11 @@ export default function Home() {
       .split(",")
       .map((s) => s.trim())
       .filter((s) => s !== "");
+    // One selector per line, not a comma list: commas are part of CSS selector syntax.
+    const clicks = click
+      .split("\n")
+      .map((s) => s.trim())
+      .filter((s) => s !== "");
     const ms = extraSettleMs.trim() === "" ? undefined : Number(extraSettleMs);
     const r = await fetch("/api/conversions", {
       method: "POST",
@@ -149,8 +154,7 @@ export default function Home() {
         targets,
         viewports: vps,
         options: {
-          // One selector, not a comma list: commas are part of CSS selector syntax.
-          ...(click.trim() !== "" ? { click: [click.trim()] } : {}),
+          ...(clicks.length > 0 ? { click: clicks } : {}),
           ...(wait.length > 0 ? { waitFor: wait } : {}),
           ...(ms === undefined ? {} : { extraSettleMs: ms }),
         },
@@ -286,13 +290,14 @@ export default function Home() {
             />
           </label>
           <label className="block text-sm font-semibold">
-            Click first (optional)
-            <input
+            Click first, one per line (optional)
+            <textarea
               value={click}
               onChange={(e) => setClick(e.target.value)}
+              rows={Math.min(10, Math.max(1, click.split("\n").length))}
               placeholder='button:has-text("Add")'
-              title="Clicked after the page settles, e.g. the button that opens a form dialog"
-              className="mt-1 w-full rounded-md border border-slate-300 p-2 font-mono text-sm"
+              title="Clicked in order after the page settles, e.g. a tab, then the button that opens a form dialog"
+              className="mt-1 w-full resize-none rounded-md border border-slate-300 p-2 font-mono text-sm"
             />
           </label>
           <label className="block text-sm font-semibold">

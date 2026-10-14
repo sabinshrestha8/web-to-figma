@@ -26,7 +26,7 @@ pnpm w2f http://localhost:3000/ -v 1440x900 -v 390x844@2 -o my-page.w2f.json
 
 This writes one bundle with one capture per viewport, to `.data/my-page.w2f.json`: bare file names (here and in `compare`, `drift`, `figma-drift`) live in the gitignored `.data/`, and are read from there when not in the current folder. A path with a folder (`./x.w2f.json`, `out/x.png`) is used as given. Diagnostics go to stderr. `--block-private` applies the hosted-mode network policy.
 
-To capture a state that needs a click (a form dialog, a menu, a tab), pass `--click <selector>` (repeatable, clicked in order after the page settles), e.g. `--click 'button:has-text("Add employee")' --wait-for '[role=dialog]'`. Any Playwright selector works. A click that finds nothing within 15 s is a warning, and the page is captured without it. In the web UI, it's the **Click first** field.
+To capture a state that needs a click (a form dialog, a menu, a tab), pass `--click <selector>` (repeatable, clicked in order after the page settles), e.g. `--click 'button:has-text("Add employee")' --wait-for '[role=dialog]'`. Any Playwright selector works. A click that finds nothing within 15 s is a warning, and the page is captured without it. In the web UI, put one selector per line in **Click first**. A button that first selects a tab or mode and opens the form on a second press needs its selector twice.
 
 For pages that load content late, `--wait-for <selector>` (repeatable; all selectors share one 60 s budget) and `--extra-settle-ms <ms>` hold the capture until it's there.
 
