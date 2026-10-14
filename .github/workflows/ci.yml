@@ -23,3 +23,36 @@ jobs:
       - run: pnpm test:int
       - run: pnpm plugin:build
       - run: pnpm --filter @w2f/web build
+      - run: W2F_API_URL=https://capture.example.com pnpm plugin:release
+
+  # The hosted capture service image (can't be built on every dev machine): build it, run it,
+  # and push one real public capture plus one blocked URL through it.
+  server-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f apps/server/Dockerfile -t w2f-server .
+      - run: docker run -d --name w2f -p 8787:8787 w2f-server
+      - name: Health
+        run: |
+          for i in $(seq 1 30); do curl -sf http://localhost:8787/healthz && exit 0; sleep 2; done
+          docker logs w2f; exit 1
+      - name: Blocked URL is refused
+        run: |
+          code=$(curl -s -o out.json -w '%{http_code}' -X POST http://localhost:8787/api/captures \
+            -H 'content-type: application/json' -d '{"url":"http://169.254.169.254/"}')
+          cat out.json; test "$code" = 400 && grep -q URL_BLOCKED out.json
+      - name: Public capture end to end
+        run: |
+          id=$(curl -sf -X POST http://localhost:8787/api/captures -H 'content-type: application/json' \
+            -d '{"url":"https://example.com"}' | jq -r .id)
+          for i in $(seq 1 60); do
+            s=$(curl -sf http://localhost:8787/api/captures/$id | jq -r .status)
+            [ "$s" = done ] && break
+            [ "$s" = failed ] && { curl -s http://localhost:8787/api/captures/$id; exit 1; }
+            sleep 2
+          done
+          test "$s" = done
+          curl -sf --compressed http://localhost:8787/api/captures/$id/bundle | jq -e '.format == "w2f-bundle"'
+      - if: always()
+        run: docker logs w2f
