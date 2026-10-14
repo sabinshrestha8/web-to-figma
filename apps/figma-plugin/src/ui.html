@@ -180,7 +180,10 @@
             <span>Access token (only if your capture service requires one)</span>
             <input id="token" type="password" autocomplete="off" />
           </label>
-          <p class="hint">Public pages only: the service can't sign in, and can't reach localhost or private networks.</p>
+          <p class="hint">
+            A hosted service captures public pages only. For pages behind a login, run the service on
+            your machine with your saved login (W2F_SESSION) and paste its token here.
+          </p>
         </div>
       </details>
     </div>

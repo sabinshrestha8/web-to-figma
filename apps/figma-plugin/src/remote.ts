@@ -79,7 +79,8 @@ async function failure(r: Response): Promise<RemoteError> {
   if ((r.headers.get("content-type") ?? "").includes("application/json"))
     body = (await r.json().catch(() => ({}))) as typeof body;
   const said = body.error ? `${body.error[0]?.toUpperCase()}${body.error.slice(1)}.` : "";
-  if (r.status === 401) return new RemoteError("The capture service needs a valid access token (Settings).");
+  if (r.status === 401)
+    return new RemoteError("The capture service needs a valid access token (Options → Access token).");
   if (r.status === 429)
     return new RemoteError(`${said || "The capture service is busy."} Try again in a minute.`);
   if (r.status === 404) return new RemoteError("The capture expired on the server. Import the page again.");
