@@ -96,6 +96,30 @@ describe("slow content (--wait-for, --extra-settle-ms)", () => {
   });
 });
 
+describe("clicks before capture (--click)", () => {
+  const hasDialog = (r: Awaited<ReturnType<typeof capture>>) =>
+    r.ok && r.value.snapshot.nodes.some((n) => n.kind === "text" && n.text.includes("New employee"));
+
+  it("captures the dialog a button opens", async () => {
+    const closed = await capture(`${base}/dialog`, desktop);
+    expect(hasDialog(closed)).toBe(false);
+    const r = await capture(`${base}/dialog`, desktop, {
+      clickSelectors: ['button:has-text("Add employee")'],
+    });
+    expect(r.ok, JSON.stringify(!r.ok && r.diagnostics)).toBe(true);
+    expect(hasDialog(r)).toBe(true);
+    if (r.ok) expect(r.value.diagnostics.map((d) => d.code)).not.toContain("TIMEOUT");
+  });
+
+  it("warns but still captures when the click target is missing", async () => {
+    const r = await capture(`${base}/dialog`, desktop, { clickSelectors: ["[data-testid=no-such-button]"] });
+    expect(r.ok, JSON.stringify(!r.ok && r.diagnostics)).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.diagnostics.find((d) => d.code === "TIMEOUT")?.severity).toBe("warning");
+    expect(hasDialog(r)).toBe(false);
+  });
+});
+
 describe("network policy against real redirects", () => {
   it("follows a same-origin redirect", async () => {
     const r = await capture(`${base}/hostile/redirect-ok`, desktop);
