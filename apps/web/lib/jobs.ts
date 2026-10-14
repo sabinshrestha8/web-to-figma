@@ -81,7 +81,7 @@ export interface Store {
 }
 
 /** In-memory jobs (lost on restart; artifacts survive under dataDir until the sweep). */
-export function createStore(execute: Execute = convertUrls): Store {
+export function createStore(execute: Execute = (job) => (g.__w2fConvert ?? convertUrls)(job)): Store {
   const jobs = new Map<string, JobRecord>();
   return {
     create(input) {
@@ -111,7 +111,10 @@ export function createStore(execute: Execute = convertUrls): Store {
 /** The server's store: one per process, shared even if the bundler instantiates this
  * module twice or hot-reloads it (dev edits used to wipe running jobs). A full restart
  * still forgets them — the poll error says so. */
-const g = globalThis as { __w2fStore?: Store };
+const g = globalThis as { __w2fStore?: Store; __w2fConvert?: Execute };
+// The store outlives reloads, so it calls the newest capture code through here: otherwise a dev
+// edit to @w2f/capture only took effect after restarting `pnpm web`.
+g.__w2fConvert = convertUrls;
 if (g.__w2fStore === undefined) g.__w2fStore = createStore();
 export const store: Store = g.__w2fStore;
 
