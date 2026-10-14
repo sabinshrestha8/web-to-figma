@@ -26,6 +26,11 @@ export interface CaptureOptions {
    * a warning, not a failure: the current state is captured as-is.
    */
   waitForSelectors?: string[];
+  /**
+   * Playwright selectors to click, in order, after the page settles: opens a dialog, menu or tab so
+   * the snapshot shows that state. A click that fails (no match, hidden) is a warning, not a failure.
+   */
+  clickSelectors?: string[];
   /** Extra quiet wait after settling, 0–5000 ms (docs/api.md). */
   extraSettleMs?: number;
   /** CSS selectors of live content (clocks, charts): their nodes get `ignore`, see DriftConfig. */
@@ -248,15 +253,46 @@ async function settle(page: Page, nav: NavState, activity: Activity, diagnostics
 }
 
 /**
- * The documented wait options (docs/api.md): a selector for slow content that must exist before
- * the snapshot (dashboards that skeleton-load), then a short extra quiet wait. A selector that
+ * The documented wait options (docs/api.md): clicks that open a state (a dialog), selectors for
+ * slow content that must exist before the snapshot (dashboards that skeleton-load), then a short
+ * extra quiet wait. A selector that
  * never appears is a warning, not a failure: the current state is captured as-is.
  */
-async function extraSettle(page: Page, options: CaptureOptions, diagnostics: Diagnostic[]): Promise<void> {
+async function extraSettle(
+  page: Page,
+  options: CaptureOptions,
+  inflight: () => number,
+  diagnostics: Diagnostic[],
+): Promise<void> {
   const selectors = (options.waitForSelectors ?? []).map((s) => s.trim()).filter((s) => s !== "");
   // One budget for all selectors: per-selector timeouts would add up past the job wall clock and
   // turn "captured as-is with a warning" into a fatal TIMEOUT.
   const deadline = Date.now() + LIMITS.waitForSelectorMs;
+  for (const selector of (options.clickSelectors ?? []).map((s) => s.trim()).filter((s) => s !== "")) {
+    // A typo should not cost the whole budget: a button that exists shows up well within 15 s.
+    const timeout = Math.max(1, Math.min(15_000, deadline - Date.now()));
+    const clicked = await page
+      .locator(selector)
+      .first()
+      .click({ timeout })
+      .then(
+        () => true,
+        (e: unknown) => {
+          diagnostics.push(
+            diag("TIMEOUT", `click "${selector}" failed; captured without it: ${String(e).split("\n")[0]}`, {
+              severity: "warning",
+            }),
+          );
+          return false;
+        },
+      );
+    // Let what it opened load and finish its transition; no scrolling, which could close a menu.
+    if (clicked) {
+      await networkQuiet(inflight);
+      await inPage(page, "__w2f.fontsReady()");
+      await inPage(page, "__w2f.nextFrames()");
+    }
+  }
   for (const selector of selectors) {
     const timeout = Math.max(1, deadline - Date.now());
     await page.waitForSelector(selector, { timeout }).catch(() => {
@@ -371,7 +407,7 @@ export async function capture(
     await navigate(page, url, nav);
     await settle(page, nav, activity, diagnostics);
     await unrollScroller(page, viewport, () => activity.inflight, diagnostics);
-    await extraSettle(page, options, diagnostics);
+    await extraSettle(page, options, () => activity.inflight, diagnostics);
 
     const collector = await collectorHandle(page);
     const collected = await withTimeout(
