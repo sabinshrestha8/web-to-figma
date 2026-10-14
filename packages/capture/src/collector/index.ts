@@ -293,4 +293,4 @@ export async function scrollThrough(maxHeight: number): Promise<boolean> {
   return nextFrames();
 }
 
-export { decodeImage } from "./decode.ts";
+export { type DecodeArgs, type DecodeResult, decodeImage } from "./decode.ts";

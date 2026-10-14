@@ -4,6 +4,9 @@ import type { Browser } from "playwright";
 import type { DecodeArgs, DecodeResult } from "./collector/decode.ts";
 import { collectorHandle } from "./in-page.ts";
 import { LIMITS } from "./limits.ts";
+import { sniffImage } from "./sniff.ts";
+
+export { sniffImage };
 
 export interface DecodedImage {
   bytes: Buffer;
@@ -14,22 +17,6 @@ export interface DecodedImage {
   /** Intrinsic size of the source, px. */
   width: number;
   height: number;
-}
-
-const ascii = (b: Buffer, from: number, to: number) => b.subarray(from, to).toString("latin1");
-
-/** The image type from the bytes themselves; the server's Content-Type is not trusted. */
-export function sniffImage(b: Buffer): string | null {
-  if (ascii(b, 1, 4) === "PNG" && b[0] === 0x89) return "image/png";
-  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "image/jpeg";
-  if (ascii(b, 0, 4) === "GIF8") return "image/gif";
-  if (ascii(b, 0, 4) === "RIFF" && ascii(b, 8, 12) === "WEBP") return "image/webp";
-  if (ascii(b, 4, 8) === "ftyp" && /^avi[fs]$/.test(ascii(b, 8, 12))) return "image/avif";
-  if (ascii(b, 0, 2) === "BM") return "image/bmp";
-  if (b[0] === 0 && b[1] === 0 && b[2] === 1 && b[3] === 0) return "image/x-icon";
-  if (/^\s*</.test(ascii(b, 0, 64)) && /<svg[\s>]/i.test(b.subarray(0, 4096).toString("utf8")))
-    return "image/svg+xml";
-  return null;
 }
 
 /** `data:` URL → bytes, or null if it isn't one / is malformed. */

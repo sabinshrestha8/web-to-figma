@@ -4,7 +4,10 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./collector": "./src/collector/index.ts",
+    "./limits": "./src/limits.ts",
+    "./sniff": "./src/sniff.ts"
   },
   "scripts": {
     "typecheck": "tsc -p ."
