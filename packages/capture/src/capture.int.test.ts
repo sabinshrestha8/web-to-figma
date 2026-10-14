@@ -206,6 +206,21 @@ describe("logged-in pages (--storage-state)", () => {
     expect(JSON.stringify(result.value)).not.toContain(TOKEN);
   });
 
+  it("works in hosted mode too (apps/server with W2F_SESSION): the pinned network sends the cookies", async () => {
+    const result = await convertUrls({
+      urls: [`${base}/auth`],
+      viewports: [desktop],
+      storageState: session(),
+      hosted: true,
+      allowPrivateNetworks: true,
+    });
+    expect(result.ok, JSON.stringify(!result.ok && result.diagnostics)).toBe(true);
+    if (!result.ok) return;
+    const chars = texts(result.value.ir.captures[0]!.root).map((t) => t.characters);
+    expect(chars).toEqual(expect.arrayContaining(["Dashboard", "Signed in as Ada"]));
+    expect(JSON.stringify(result.value)).not.toContain(TOKEN);
+  });
+
   it("pnpm w2f:login saves a session that pnpm w2f --storage-state can use", async () => {
     const out = join(mkdtempSync(join(tmpdir(), "w2f-")), "auth.json");
     const saved = await saveLogin(`${base}/landing`, out, {
