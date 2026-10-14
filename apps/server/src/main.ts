@@ -3,7 +3,13 @@ import { closeBrowser } from "@w2f/capture";
 import { configFromEnv, createApp } from "./app.ts";
 
 const config = configFromEnv(process.env);
-const app = createApp(config);
+let app: ReturnType<typeof createApp>;
+try {
+  app = createApp(config);
+} catch (e) {
+  console.error(e instanceof Error ? e.message : String(e));
+  process.exit(1);
+}
 const port = Number(process.env.PORT ?? 8787);
 const host = process.env.HOST ?? "0.0.0.0";
 
@@ -20,8 +26,11 @@ server.listen(port, host, () => {
       auth: config.apiTokens.length > 0,
       maxRunning: config.maxRunning,
       allowPrivateNetworks: config.allowPrivateNetworks,
+      session: config.sessionFile !== undefined,
     }),
   );
+  if (config.sessionFile)
+    console.warn("W2F_SESSION: captures use your saved login. Keep this service on your own machine.");
   if (config.allowPrivateNetworks)
     console.warn(
       "W2F_ALLOW_PRIVATE=1: this service can reach localhost and private networks. Development only.",

@@ -1,7 +1,15 @@
 import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { gunzipSync, gzipSync } from "node:zlib";
-import { type ConvertJob, convertUrls, createPolicy, parseViewport, type Viewport } from "@w2f/capture";
+import {
+  type ConvertJob,
+  convertUrls,
+  createPolicy,
+  loadStorageState,
+  parseViewport,
+  type StorageState,
+  type Viewport,
+} from "@w2f/capture";
 import { type Bundle, type Diagnostic, diag, type Result } from "@w2f/ir";
 import { z } from "zod";
 
@@ -23,6 +31,12 @@ export interface ServerConfig {
   maxBundleBytes: number;
   /** Development only: lets the service capture localhost. Never in production. */
   allowPrivateNetworks: boolean;
+  /**
+   * A saved login (`pnpm w2f:login` / the web UI's .data/auth.json) loaded into every capture.
+   * For a service on your own machine only, and only with apiTokens: otherwise any website you
+   * visit could have it capture your logged-in pages and read the result (CORS is "*").
+   */
+  sessionFile?: string;
 }
 
 const int = (v: string | undefined, fallback: number) => {
@@ -43,6 +57,7 @@ export function configFromEnv(env: NodeJS.ProcessEnv): ServerConfig {
     resultTtlMs: int(env.W2F_RESULT_TTL_MS, 10 * 60_000),
     maxBundleBytes: int(env.W2F_MAX_BUNDLE_MB, 60) * 1024 * 1024,
     allowPrivateNetworks: env.W2F_ALLOW_PRIVATE === "1",
+    ...(env.W2F_SESSION ? { sessionFile: env.W2F_SESSION } : {}),
   };
 }
 
@@ -144,8 +159,27 @@ export function createApp(
   const jobs = new Map<string, Job>();
   const queue: Job[] = [];
   const recent = new Map<string, number[]>();
+  if (config.sessionFile && config.apiTokens.length === 0)
+    throw new Error(
+      "W2F_SESSION needs W2F_API_TOKENS: without a token any website you visit could capture your logged-in pages through this service.",
+    );
   const tokens = config.apiTokens.map(digest);
   let running = 0;
+
+  /** Read per capture, so logging in again takes effect without a restart. */
+  function session(): StorageState | undefined {
+    if (!config.sessionFile) return undefined;
+    try {
+      return loadStorageState(config.sessionFile);
+    } catch (e) {
+      log({ level: "error", msg: "session unreadable", error: e instanceof Error ? e.message : String(e) });
+      throw new HttpError(
+        400,
+        "the service's saved login can't be read; log in again (pnpm w2f:login or the web UI)",
+        [diag("INVALID_INPUT", "the saved login (W2F_SESSION) is missing or not a session file")],
+      );
+    }
+  }
 
   /** The caller's identity for limits: its token if any, else its IP. */
   function client(req: IncomingMessage): string {
@@ -217,6 +251,7 @@ export function createApp(
       throw new HttpError(429, "you already have a capture in progress");
     if (running >= config.maxRunning && queue.length >= config.maxQueued)
       throw new HttpError(429, "the service is busy, try again in a minute");
+    const storageState = session();
     rateLimit(who);
 
     const job: Job = {
@@ -240,6 +275,7 @@ export function createApp(
           hosted: true,
           allowPrivateNetworks: config.allowPrivateNetworks,
           signal: j.controller.signal,
+          ...(storageState ? { storageState } : {}),
           ...(input.click?.length ? { clickSelectors: input.click } : {}),
           ...(input.waitFor?.length ? { waitForSelectors: input.waitFor } : {}),
           ...(input.extraSettleMs !== undefined ? { extraSettleMs: input.extraSettleMs } : {}),
