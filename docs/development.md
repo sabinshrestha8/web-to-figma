@@ -280,3 +280,17 @@ Community users should be able to import a URL from the plugin alone. The local 
 - **Found while verifying:** (1) the queue check refused a job with a free slot when `W2F_MAX_QUEUED=0`; (2) a sandboxed iframe without `allow-forms` never fires `submit`, so the plugin's Import button did nothing in a null-origin iframe. It's a click handler now; (3) `node --import tsx` resolves from the working directory, so the Dockerfile runs from `apps/server`.
 - **Verified:** server unit (16) and end-to-end (2, real Chromium on the fixture site) tests; plugin client tests; the built `ui.html` driven in a sandboxed null-origin iframe against the running service (import + dialog click, invalid URL, metadata IP → `URL_BLOCKED`, cancel in 195 ms); a production-style filtered install, started like the image's CMD, captured `https://example.com` in 3.5 s.
 - **Not verified here:** the Docker image (no Docker on this machine), so CI now has a `server-image` job: it builds the image, runs it, and checks `/healthz`, a blocked metadata URL and a real `https://example.com` capture. The `check` job also runs the release build. Also not verified: the plugin inside Figma itself, and any deployment or Community publish.
+
+### Phase 10 follow-up: logged-in pages from the plugin (2026-10-14)
+
+A service on your own machine can now use the saved login: `W2F_SESSION=.data/auth.json` (the same file `pnpm w2f:login` and the web UI write) is loaded into every capture, re-read per job (so a fresh login needs no restart), and an unreadable file gives a `400` "log in again". The server refuses to start with a session and no `W2F_API_TOKENS`: CORS is `*`, so otherwise any website could drive it and read logged-in captures.
+
+- **No capture change was needed.** A new test proved that hosted mode's pinned fetch already carries the context's cookies (routed request headers include them); stripping the cookie there makes the test fail.
+- **Tests:**
+  - the start refusal;
+  - the session reaching `execute`, with the cookie value absent from the logs;
+  - a missing file giving `400` without capturing;
+  - end to end through HTTP on the `/auth` fixture ("Signed in as Ada", no redirect, the cookie absent from the bundle). Mutation-checked: the test fails without passing the session along.
+- **Verified:**
+  - the built plugin UI in a null-origin iframe: a 401 message without the token; with it, the logged-in fixture;
+  - the user's real leave page, through a service using their saved login (no private networks), with the two Assign clicks: done in 18.6 s, no redirect, 1440×900, and the MUI dialog present. Only structure was inspected; the result lived only in that service's memory.
