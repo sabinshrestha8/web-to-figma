@@ -6,5 +6,8 @@
   "main": "dist/code.js",
   "ui": "dist/ui.html",
   "documentAccess": "dynamic-page",
-  "networkAccess": { "allowedDomains": ["none"] }
+  "networkAccess": {
+    "allowedDomains": ["http://localhost:8787"],
+    "reasoning": "Development build: imports pages through a capture service running on this machine (pnpm server)."
+  }
 }

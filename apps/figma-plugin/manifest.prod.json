@@ -6,5 +6,7 @@
   "main": "dist/code.js",
   "ui": "dist/ui.html",
   "documentAccess": "dynamic-page",
-  "networkAccess": { "allowedDomains": ["none"] }
+  "networkAccess": {
+    "allowedDomains": ["https://capture.example.com"]
+  }
 }
