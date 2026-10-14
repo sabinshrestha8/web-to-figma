@@ -259,6 +259,14 @@ describe("app-shell pages that scroll inside an element", () => {
     expect(ir.diagnostics.map((d) => d.code)).not.toContain("ASSET_REJECTED");
   });
 
+  it("keeps the requested viewport when a click opens a state (a dialog over the screen)", async () => {
+    const r = await capture(`${base}/app-shell`, desktop, { clickSelectors: ["body"] });
+    expect(r.ok, JSON.stringify(!r.ok && r.diagnostics)).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.diagnostics.map((d) => d.code)).not.toContain("SCROLL_CONTAINER_EXPANDED");
+    expect(r.value.screenshot.readUInt32BE(20)).toBe(desktop.height * desktop.dpr);
+  });
+
   it("leaves pages whose document scrolls alone", async () => {
     const r = await capture(`${base}/card-grid`, desktop);
     expect(r.ok).toBe(true);

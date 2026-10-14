@@ -406,7 +406,10 @@ export async function capture(
     });
     await navigate(page, url, nav);
     await settle(page, nav, activity, diagnostics);
-    await unrollScroller(page, viewport, () => activity.inflight, diagnostics);
+    // A click opens a dialog or menu: its backdrop covers the screen and nothing behind it scrolls,
+    // so the capture is the screen the user sees, not the page grown to its inner scroller.
+    const clicks = (options.clickSelectors ?? []).some((s) => s.trim() !== "");
+    if (!clicks) await unrollScroller(page, viewport, () => activity.inflight, diagnostics);
     await extraSettle(page, options, () => activity.inflight, diagnostics);
 
     const collector = await collectorHandle(page);
