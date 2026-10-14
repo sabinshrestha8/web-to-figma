@@ -1,6 +1,6 @@
 # V1 release checklist
 
-V1 is the CLI tool plus the Figma plugin (`pnpm w2f`, `compare`, `drift`, `figma-drift`, `drift:run`, `w2f:login`; no web UI, no npm packages, no hosted mode).
+V1 is the CLI tool plus the Figma plugin (`pnpm w2f`, `compare`, `drift`, `figma-drift`, `drift:run`, `w2f:login`). Since then: the local web UI (`pnpm web`) and the hosted capture service behind the plugin's URL import ([hosting.md](hosting.md)). Nothing is published to npm.
 
 ## Cut the release
 
@@ -26,15 +26,26 @@ desktop via **Plugins → Development → Import plugin from manifest…** with
 
 ## Publish the plugin
 
-1. `pnpm plugin:build`.
-2. Make a publish copy of `apps/figma-plugin/`: replace `manifest.json` with
-   `manifest.prod.json` (name `Web to Figma`). The prod `id` (`web-to-figma`)
-   must never change after the first publish, or Figma treats it as a new plugin.
-3. In Figma desktop: **Plugins → Development → Import plugin from manifest…**,
-   then publish to Community from the plugin page. `networkAccess` stays
-   `allowedDomains: ["none"]`: the plugin never touches the network, and the
-   listing should say so.
-4. Keep `manifest.json` (the `(dev)` one) for local development.
+1. Deploy the capture service over https and check `GET /healthz`
+   ([hosting.md](hosting.md#deploy)).
+2. First time only: in Figma desktop, **Plugins → Development → New plugin…**
+   to get a plugin **id** from Figma (the `id` in `manifest.prod.json` is a
+   placeholder). That id must never change after the first publish, or Figma
+   treats it as a new plugin.
+3. `W2F_API_URL=https://<service> W2F_PLUGIN_ID=<id> pnpm plugin:release`
+   writes `apps/figma-plugin/release/` (manifest + dist). Its
+   `networkAccess.allowedDomains` is exactly the service origin.
+4. **Plugins → Development → Import plugin from manifest…** with
+   `release/manifest.json`. Test: import a public URL, cancel one, import a
+   blocked URL (`http://localhost`) and see `URL_BLOCKED`, and drop a bundle.
+5. Publish from the plugin's menu in Figma (**Publish**), filling in: description, cover art,
+   icon, support contact, and the network-access explanation. It talks only to
+   the capture service, which renders the public URL you enter and keeps the
+   result for 10 minutes. Mention that logged-in pages need the local tools.
+6. Updates: rebuild with the same id and URL, import, and **Publish new version**.
+   If the service URL changes, the manifest's `networkAccess` changes too, so
+   keep the old service running until users have updated.
+7. Keep `manifest.json` (the `(dev)` one) for local development.
 
 ## Post-release
 
