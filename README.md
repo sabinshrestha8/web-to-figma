@@ -64,7 +64,7 @@ To capture a logged-in page from the UI instead, open the **Saved session** card
 W2F_ALLOW_PRIVATE=1 pnpm server   # the capture service on http://localhost:8787 (ALLOW_PRIVATE only for localhost pages)
 ```
 
-In the plugin, enter a URL, pick a viewport and press **Import website**. The service renders the page, the plugin downloads the bundle and builds it, with real progress and a Cancel button. **Options** takes click-first and wait-for selectors (for a dialog) and an access token. Deployed, the same service lets Community users import public pages with nothing installed. Logged-in pages still need the local capture plus a dropped bundle. Deploying, env vars, the API and publishing: [docs/hosting.md](docs/hosting.md).
+In the plugin, enter a URL, pick a viewport and press **Import website**. The service renders the page, the plugin downloads the bundle and builds it, with real progress and a Cancel button. **Options** takes click-first and wait-for selectors (for a dialog) and an access token. Deployed, the same service lets Community users import public pages with nothing installed. For pages behind a login, start it with your saved login and a token (`W2F_SESSION=.data/auth.json W2F_API_TOKENS=<token> pnpm server`), then paste the token under **Options → Access token** ([details](docs/hosting.md#pages-behind-a-login-service-on-your-own-machine)). Deploying, env vars, the API and publishing: [docs/hosting.md](docs/hosting.md).
 
 The plugin builds one frame per capture inside a Section. Each frame contains a hidden, locked **Reference screenshot** layer: unhide it to compare against the browser.
 

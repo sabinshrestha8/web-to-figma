@@ -46,6 +46,26 @@ In Figma desktop, choose **Plugins → Development → Import plugin from manife
 
 To point a dev build at another service, run `W2F_API_URL=https://staging.example.com pnpm plugin:build` and add that origin to `manifest.json` `networkAccess.allowedDomains`. The build warns you if you forget.
 
+## Pages behind a login (service on your own machine)
+
+A service running on your own machine can use the login you saved with `pnpm w2f:login <url>`, or with the web UI's **Saved session** card. Both write `.data/auth.json`.
+
+```powershell
+# PowerShell, from the repo root; pick any long random token
+$env:W2F_SESSION=".data/auth.json"; $env:W2F_API_TOKENS="<your-token>"; pnpm server
+```
+
+```sh
+W2F_SESSION=.data/auth.json W2F_API_TOKENS=<your-token> pnpm server   # bash
+```
+
+In the plugin, paste the token under **Options → Access token** once; it's remembered. After that, **Import website** captures logged-in pages, and **Click first** / **Wait for** open dialogs the same way.
+
+- **The token is required.** The server refuses to start with `W2F_SESSION` and no `W2F_API_TOKENS`. Its CORS is `*`, so without a token any website you visit could ask it to capture your logged-in pages and read the result.
+- The file is read for every capture, so after logging in again the next import uses the new login without a restart. If the file is missing or broken, the request gets a `400` asking you to log in again.
+- Cookies only go to their own domains, as in a browser. Cookie values never appear in bundles or logs.
+- Never deploy a service with `W2F_SESSION`: everyone with a token would capture pages as you.
+
 ## Environment variables (`apps/server/.env.example`)
 
 | Variable | Default | Meaning |
@@ -60,6 +80,7 @@ To point a dev build at another service, run `W2F_API_URL=https://staging.exampl
 | `W2F_MAX_BUNDLE_MB` | `60` | Larger results fail with `PAGE_TOO_LARGE` |
 | `W2F_CHROMIUM_SANDBOX` | `0` | `1` = Chromium's own sandbox (needs a runtime that permits it) |
 | `W2F_ALLOW_PRIVATE` | `0` | **Development only.** `1` lets captures reach localhost and private networks |
+| `W2F_SESSION` | empty | **Your own machine only.** A saved login file (`.data/auth.json`) used for every capture; requires `W2F_API_TOKENS` |
 
 Plugin build-time variables: `W2F_API_URL` (required for `--release`, https only, not localhost) and `W2F_PLUGIN_ID` (the id Figma assigns).
 
@@ -92,7 +113,7 @@ This writes the gitignored `apps/figma-plugin/release/`, containing `manifest.js
 
 ## Limits and what hosted mode can't do
 
-- **Public pages only.** Each capture starts in a fresh, empty browser context: the service has no way to receive your cookies, saved sessions or credentials, so pages behind a login capture as their logged-out state. For those, capture locally (`pnpm w2f:login` + `pnpm w2f`, or the web UI) and drop the bundle into the plugin.
+- **A deployed service captures public pages only.** Each capture starts in a fresh, empty browser context, and the API has no way to send cookies or credentials, so pages behind a login capture as their logged-out state. For those, run the service on your own machine with your saved login (above), or capture with the CLI or web UI and drop the bundle into the plugin.
 - No localhost or private-network pages (by design). Use the local tools for those.
 - WebSockets are closed, so live dashboards capture their initial state.
 - One capture at a time per client. Queue and hourly limits apply.
