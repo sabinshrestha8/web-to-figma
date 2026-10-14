@@ -3,6 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <style>
+      * {
+        box-sizing: border-box;
+      }
       body {
         margin: 0;
         padding: 16px;
@@ -10,25 +13,116 @@
         color: var(--figma-color-text, #333);
         background: var(--figma-color-bg, #fff);
       }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      label.field {
+        display: block;
+        margin-bottom: 8px;
+      }
+      label.field > span {
+        display: block;
+        margin-bottom: 4px;
+        color: var(--figma-color-text-secondary, #666);
+      }
+      input,
+      select,
+      textarea,
+      button {
+        font: inherit;
+        color: inherit;
+      }
+      input[type="url"],
+      input[type="password"],
+      select,
+      textarea {
+        width: 100%;
+        padding: 6px 8px;
+        border: 1px solid var(--figma-color-border, #ccc);
+        border-radius: 4px;
+        background: var(--figma-color-bg, #fff);
+      }
+      textarea {
+        resize: vertical;
+        font-family: ui-monospace, monospace;
+      }
+      :focus-visible {
+        outline: 2px solid var(--figma-color-border-brand-strong, #0d99ff);
+        outline-offset: 1px;
+      }
+      [aria-invalid="true"] {
+        border-color: var(--figma-color-border-danger, #c00);
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        align-items: end;
+      }
+      .row > .field {
+        flex: 1;
+      }
+      button {
+        padding: 6px 12px;
+        border: 1px solid var(--figma-color-border, #ccc);
+        border-radius: 4px;
+        background: var(--figma-color-bg, #fff);
+        cursor: pointer;
+      }
+      button.primary {
+        border-color: transparent;
+        background: var(--figma-color-bg-brand, #0d99ff);
+        color: var(--figma-color-text-onbrand, #fff);
+        font-weight: 600;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      details {
+        margin: 4px 0 8px;
+      }
+      summary {
+        cursor: pointer;
+        color: var(--figma-color-text-secondary, #666);
+      }
+      details > div {
+        padding-top: 8px;
+      }
+      .hint {
+        margin: 2px 0 0;
+        color: var(--figma-color-text-tertiary, #999);
+        font-size: 11px;
+      }
+      progress {
+        width: 100%;
+        height: 6px;
+      }
       #drop {
         display: block;
-        padding: 32px 16px;
+        margin-top: 12px;
+        padding: 12px;
         border: 1px dashed var(--figma-color-border, #ccc);
         border-radius: 6px;
         text-align: center;
+        color: var(--figma-color-text-secondary, #666);
         cursor: pointer;
       }
       #drop.over {
         border-color: var(--figma-color-border-brand, #0d99ff);
       }
       #file {
-        display: none;
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        opacity: 0;
       }
       ul {
         margin: 8px 0 0;
         padding: 0;
         list-style: none;
-        max-height: 260px;
+        max-height: 200px;
         overflow: auto;
       }
       li {
@@ -42,8 +136,8 @@
       li.warning {
         color: var(--figma-color-text-warning, #a60);
       }
-      button {
-        font: inherit;
+      #status {
+        margin: 12px 0 4px;
       }
       #export {
         margin-top: 12px;
@@ -51,19 +145,66 @@
     </style>
   </head>
   <body>
-    <label id="drop">
-      Drop a <b>.w2f.json</b> bundle here, or click to choose one.
-      <input id="file" type="file" accept=".json,application/json" />
-    </label>
-    <button id="export" type="button" title="For pnpm compare against the reference screenshot">
-      Export selected frame as PNG
-    </button>
-    <p id="status"></p>
+    <h1>Import a website</h1>
+    <div id="import">
+      <label class="field">
+        <span>Page URL</span>
+        <input id="url" type="url" placeholder="https://example.com" autocomplete="url" required />
+      </label>
+      <div class="row">
+        <label class="field">
+          <span>Viewport</span>
+          <select id="viewport">
+            <option value="desktop">Desktop (1440 × 900)</option>
+            <option value="mobile">Mobile (390 × 844)</option>
+            <option value="tablet">Tablet (768 × 1024)</option>
+            <option value="desktop,mobile">Desktop + Mobile</option>
+          </select>
+        </label>
+        <div style="margin-bottom: 8px">
+          <button id="go" class="primary" type="button">Import website</button>
+        </div>
+      </div>
+      <details>
+        <summary>Options</summary>
+        <div>
+          <label class="field">
+            <span>Click first (one selector per line)</span>
+            <textarea id="click" rows="2" placeholder='text=Sign up&#10;button:has-text("Menu")'></textarea>
+          </label>
+          <label class="field">
+            <span>Wait for (one selector per line)</span>
+            <textarea id="wait" rows="1" placeholder="[role=dialog]"></textarea>
+          </label>
+          <label class="field">
+            <span>Access token (only if your capture service requires one)</span>
+            <input id="token" type="password" autocomplete="off" />
+          </label>
+          <p class="hint">Public pages only: the service can't sign in, and can't reach localhost or private networks.</p>
+        </div>
+      </details>
+    </div>
+
+    <div role="status" aria-live="polite">
+      <p id="status"></p>
+      <progress id="progress" hidden></progress>
+    </div>
+    <div id="busy" hidden>
+      <button id="stop" type="button">Cancel</button>
+    </div>
     <div id="confirm" hidden>
-      <button id="build" type="button">Build</button>
+      <button id="build" class="primary" type="button">Build</button>
       <button id="cancel" type="button">Cancel</button>
     </div>
     <ul id="diagnostics"></ul>
+
+    <label id="drop">
+      Or drop a <b>.w2f.json</b> bundle here (or click to choose one).
+      <input id="file" type="file" accept=".json,application/json" />
+    </label>
+    <button id="export" type="button" title="For pnpm compare against the reference screenshot" hidden>
+      Export selected frame as PNG
+    </button>
     <script>
       /*UI_SCRIPT*/
     </script>

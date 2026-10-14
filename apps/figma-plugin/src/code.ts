@@ -2,7 +2,7 @@ import type { Document } from "@w2f/ir";
 import { build, type FontPlan, planBuild } from "./build.ts";
 import type { ToCode, ToUI } from "./messages.ts";
 
-figma.showUI(__html__, { width: 380, height: 460, themeColors: true });
+figma.showUI(__html__, { width: 380, height: 560, themeColors: true });
 
 const post = (m: ToUI) => figma.ui.postMessage(m);
 
@@ -35,6 +35,11 @@ const fail = (e: unknown) =>
 
 figma.ui.onmessage = async (msg: ToCode) => {
   if (msg.type === "export") return exportSelected();
+  if (msg.type === "get-settings") {
+    const token = (await figma.clientStorage.getAsync("token")) as string | undefined;
+    return post({ type: "settings", token: token ?? "" });
+  }
+  if (msg.type === "set-token") return figma.clientStorage.setAsync("token", msg.token);
   if (msg.type === "cancel") {
     pending = null;
     return;
