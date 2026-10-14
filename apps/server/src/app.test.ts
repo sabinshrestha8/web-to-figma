@@ -1,5 +1,8 @@
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { ConvertJob } from "@w2f/capture";
 import {
   BUNDLE_FORMAT,
@@ -258,5 +261,61 @@ describe("hosted capture API", () => {
     expect((await fetch(`${base}/api/captures/${id}`)).status).toBe(404);
     expect(JSON.stringify(logs)).not.toContain("token=abc");
     expect(JSON.stringify(logs)).not.toContain("/private");
+  });
+});
+
+describe("saved login (W2F_SESSION)", () => {
+  const SECRET = "cookie-value-never-logged";
+  function sessionFile() {
+    const path = join(mkdtempSync(join(tmpdir(), "w2f-session-")), "auth.json");
+    const cookie = {
+      name: "sid",
+      value: SECRET,
+      domain: "93.184.216.34",
+      path: "/",
+      expires: -1,
+      httpOnly: true,
+      secure: false,
+      sameSite: "Lax",
+    };
+    writeFileSync(path, JSON.stringify({ cookies: [cookie], origins: [] }));
+    return path;
+  }
+  const auth = { authorization: "Bearer t" };
+
+  it("refuses to start without an access token", () => {
+    expect(() => createApp({ ...config, sessionFile: sessionFile() })).toThrow(/W2F_API_TOKENS/);
+  });
+
+  it("loads the login into every capture and never logs it", async () => {
+    const seen: ConvertJob[] = [];
+    const base = await start(
+      async (job) => {
+        seen.push(job);
+        return { ok: true, value: bundle() };
+      },
+      { sessionFile: sessionFile(), apiTokens: ["t"] },
+    );
+    const r = await post(base, { url: PUBLIC }, auth);
+    expect(r.status).toBe(202);
+    const { id } = (await r.json()) as { id: string };
+    await fetch(`${base}/api/captures/${id}`, { headers: auth });
+    expect(seen[0]?.storageState?.cookies[0]?.value).toBe(SECRET);
+    expect(JSON.stringify(logs)).not.toContain(SECRET);
+  });
+
+  it("answers 400 without capturing when the login file is gone", async () => {
+    let ran = false;
+    const base = await start(
+      async () => {
+        ran = true;
+        return { ok: true, value: bundle() };
+      },
+      { sessionFile: join(tmpdir(), "w2f-no-such-dir", "auth.json"), apiTokens: ["t"] },
+    );
+    const r = await post(base, { url: PUBLIC }, auth);
+    expect(r.status).toBe(400);
+    expect(await r.json()).toMatchObject({ error: expect.stringContaining("log in again") });
+    expect(ran).toBe(false);
   });
 });

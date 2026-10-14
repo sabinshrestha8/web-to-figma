@@ -1,7 +1,10 @@
 /// <reference path="../../../tests/fixture-server.ts" />
 
+import { mkdtempSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { closeBrowser } from "@w2f/capture";
 import { parseBundle } from "@w2f/ir";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
@@ -71,5 +74,53 @@ describe("hosted capture service (end to end)", () => {
     expect((await fetch(`${base}/api/captures/${id}`, { method: "DELETE" })).status).toBe(200);
     expect((await settle(id)).status).toBe("cancelled");
     expect(Date.now() - t).toBeLessThan(15_000);
+  });
+});
+
+describe("a local service with a saved login (W2F_SESSION)", () => {
+  it("captures a logged-in page through the API and keeps the cookie out of the bundle", async () => {
+    const TOKEN = "fixture-session-token";
+    const file = join(mkdtempSync(join(tmpdir(), "w2f-session-")), "auth.json");
+    const cookie = { name: "w2f_session", value: TOKEN, domain: "127.0.0.1", path: "/", expires: -1 };
+    writeFileSync(
+      file,
+      JSON.stringify({
+        cookies: [{ ...cookie, httpOnly: true, secure: false, sameSite: "Lax" }],
+        origins: [{ origin: fixture, localStorage: [{ name: "w2f_user", value: "Ada" }] }],
+      }),
+    );
+    const own = createApp(
+      { ...configFromEnv({}), allowPrivateNetworks: true, apiTokens: ["local"], sessionFile: file },
+      undefined,
+      () => {},
+    );
+    const srv = createServer((req, res) => void own.handle(req, res));
+    await new Promise<void>((r) => srv.listen(0, "127.0.0.1", r));
+    const api = `http://127.0.0.1:${(srv.address() as AddressInfo).port}`;
+    const headers = { authorization: "Bearer local", "content-type": "application/json" };
+    try {
+      const r = await fetch(`${api}/api/captures`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ url: `${fixture}/auth` }),
+      });
+      expect(r.status).toBe(202);
+      const { id } = (await r.json()) as { id: string };
+      let status = "queued";
+      while (status === "queued" || status === "running") {
+        await new Promise((res) => setTimeout(res, 250));
+        status = (
+          (await (await fetch(`${api}/api/captures/${id}`, { headers })).json()) as { status: string }
+        ).status;
+      }
+      expect(status).toBe("done");
+      const text = await (await fetch(`${api}/api/captures/${id}/bundle`, { headers })).text();
+      expect(text).toContain("Signed in as Ada");
+      expect(text).not.toContain("PAGE_REDIRECTED");
+      expect(text).not.toContain(TOKEN);
+    } finally {
+      own.abortAll();
+      await new Promise<void>((r) => srv.close(() => r()));
+    }
   });
 });
