@@ -305,7 +305,7 @@ export default function Home() {
             <input
               value={waitFor}
               onChange={(e) => setWaitFor(e.target.value)}
-              placeholder="[data-loaded]"
+              placeholder="[role=dialog]"
               className="mt-1 w-full rounded-md border border-slate-300 p-2 font-mono text-sm"
             />
           </label>
