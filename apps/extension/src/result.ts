@@ -117,8 +117,13 @@ async function main() {
     setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
   });
   $("copy").addEventListener("click", async () => {
-    await navigator.clipboard.writeText(json);
-    $("copy").textContent = "Copied: click the plugin's paste box, then Ctrl+V";
+    try {
+      await navigator.clipboard.writeText(json);
+      $("copy").textContent =
+        `Copied ${(json.length / 1e6).toFixed(1)} MB: click the plugin's paste box, then Ctrl+V`;
+    } catch (e) {
+      $("copy").textContent = `Copy failed (${String(e)}): use Download instead`;
+    }
   });
 }
 
