@@ -83,6 +83,20 @@ async function main() {
   document.title = `Web to Figma: ${snapshot.title || snapshot.url}`;
   $("page").textContent =
     `${snapshot.title || "Untitled"} (${snapshot.url}), ${snapshot.viewport.width}×${snapshot.viewport.height}`;
+  // Firefox lets users withhold "all sites" access; without it, cross-origin images can't be read.
+  const all = { origins: ["<all_urls>"] };
+  if (!(await chrome.permissions.contains(all))) {
+    status.textContent =
+      "Reading this page's images needs access to all sites (they can come from any domain).";
+    const prompt = $<HTMLDivElement>("permission");
+    prompt.hidden = false;
+    await new Promise<void>((done) => {
+      // permissions.request must run straight from the click.
+      $("allow").addEventListener("click", () => void chrome.permissions.request(all).finally(done));
+      $("skip").addEventListener("click", () => done());
+    });
+    prompt.hidden = true;
+  }
   status.textContent = "Converting…";
   const result = await toBundle(handoff, await deps(handoff.screenshot, snapshot.viewport.width));
   if (!result.ok) {
