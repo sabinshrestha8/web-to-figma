@@ -312,3 +312,10 @@ A published plugin can't capture logged-in pages through a deployed service, and
   - unit tests (4) and integration tests (2: the loaded extension in Playwright's Chromium on the logged-in `/auth` fixture and on image-heavy, downloading through the real button). Mutation-checked: breaking image fetching fails the image test;
   - end to end in one browser: the dialog fixture with the dialog open → extension → **Copy** → Ctrl+V into the built plugin UI in a sandboxed null-origin iframe → the plugin got the bundle and started its font check. The texts match a CLI `--click` capture of the same dialog.
 - **Not verified here:** Edge, a real Ctrl+V inside Figma desktop, and the user's real logged-in app through the extension. Not published to the Chrome Web Store (no icons yet; [release.md](release.md#publish-the-extension)).
+
+### Phase 11 follow-up: Firefox, app shells, paste in Figma (2026-10-15)
+
+- **Firefox:** one manifest serves both browsers (`background.scripts` next to `service_worker`, a gecko id, `data_collection_permissions: none`), and `web-ext lint` reports 0 errors. When Firefox withholds `<all_urls>`, the result tab asks for it. Browser and error pages now get a clear "can't be read by extensions" message.
+- **App shells:** the collector's `unrollInPlace`/`restoreUnroll` grow the main inner scroller and its ancestors for the capture, then restore them. This is skipped while a dialog or menu is open. Tested on the app-shell fixture (800 → 2816 px, page restored).
+- **Paste in Figma:** Figma desktop sends Ctrl+V to the canvas unless a plugin text field has focus, so bundles now go into a dedicated paste box. If the paste event carries no text, the input handler reads the box instead. **Copy** reports the size it copied, or why it failed.
+- **Verified by the user in Firefox + Figma desktop:** a capture of their real dashboard; Download → drop, and Copy → paste, both imported.
