@@ -10,6 +10,18 @@ toolbar button / Alt+Shift+F
 Figma plugin: drop the file, or Ctrl+V the copied bundle into its paste box
 ```
 
+## Browsers
+
+| Browser | Status |
+|---|---|
+| Firefox 128+ (desktop) | Works; tested end to end with Figma desktop |
+| Chromium | Covered by the integration tests |
+| Chrome 121+, Edge, Brave, Opera, Vivaldi, Arc | Same engine and manifest; expected to work, not tried individually |
+| Safari | No: it needs repackaging with Xcode and an Apple developer account |
+| Mobile | No (Figma desktop is needed anyway) |
+
+One `manifest.json` serves both engines. Firefox uses `background.scripts` and Chrome uses `background.service_worker`; each ignores the other's key. `web-ext lint` warns about `service_worker`, and that warning is expected.
+
 ## Install (unpacked, for now)
 
 ```sh
@@ -24,10 +36,22 @@ pnpm extension:build      # writes apps/extension/dist
 ## Use
 
 1. Open the page and get it into the state you want: logged in, dialog open, scrolled to the top.
-2. Click the **Web to Figma** toolbar button (pin it from the puzzle-piece/extensions menu), or press **Alt+Shift+F**. The shortcut doesn't move focus, so menus that close on blur stay open. You can change it at `chrome://extensions/shortcuts`.
+2. Click the **Web to Figma** toolbar button (pin it from the puzzle-piece/extensions menu), or press **Alt+Shift+F**. The shortcut doesn't move focus, so menus that close on blur stay open. You can change it at `chrome://extensions/shortcuts`, or in Firefox at `about:addons` → gear menu → **Manage Extension Shortcuts**.
 3. A result tab opens and converts the capture. Choose **Download .w2f.json** and drop the file into the plugin, or choose **Copy for the plugin**, click the plugin's paste box ("Copied with the browser extension?…") and press **Ctrl+V**. Figma desktop sends Ctrl+V to the canvas unless a plugin text field has focus.
 
 The frame size is your window's viewport. For a mobile or tablet frame, open DevTools device mode at the size you want, then capture.
+
+## Troubleshooting
+
+| You see | Do this |
+|---|---|
+| "… can't be read by extensions" | You captured a browser page (error page, `about:`/`chrome://`, add-on store, PDF) or a tab that didn't load. Open the real page, wait for it, capture again |
+| "This capture is no longer available" | The result tab was reloaded or opened later. Capture again |
+| Images missing (placeholders) | In Firefox, allow access to the page's images when asked. `blob:` images and images drawn off screen can't be read |
+| Pasting does nothing in Figma | Click inside the plugin's paste box first: Figma sends Ctrl+V to the canvas otherwise. Or use **Download** and drop the file |
+| "Copy failed …" | Use **Download** and drop the file |
+| The plugin says the bundle is from a newer version | Run `pnpm plugin:build` and `pnpm extension:build` from the same checkout, then reload both |
+| The add-on is gone in Firefox | Temporary add-ons are removed on restart: load it again from `about:debugging` |
 
 ## Differences from the Playwright capture
 

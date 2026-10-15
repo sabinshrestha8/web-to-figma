@@ -6,7 +6,7 @@ Convert a rendered React/Next.js page into an **editable** Figma design: real fr
 Rendered web UI → DOM + computed layout → UI IR (versioned, neutral) → Figma plugin → editable design
 ```
 
-**Status:** V1 ready; Phase 10 adds URL import in the Figma plugin through a deployable capture service (not yet deployed or published). Pages convert end to end with **verified Auto Layout**: flex, wrap, baseline rows, block stacking and grids become stacks and fixed-track grids wherever a simulation reproduces the measured positions within 1 px, absolute positioning elsewhere. Boxes carry borders, radii, gradients (blended like CSS), shadows, blurs, opacity, blend, clipping, rotation and z-order. Each paragraph is one editable text layer with style runs, and CSS ellipsis truncation becomes Figma's native truncation (IR 1.4). Images are real image fills, inline SVG icons are editable vectors, and canvas, video and iframes arrive as raster islands. Captured pages can be diffed node by node against an older capture or against a Figma frame. See [docs/development.md](docs/development.md).
+**Status:** V1 ready. Phase 10 added URL import in the Figma plugin through a deployable capture service (not yet deployed or published). Phase 11 added a browser extension (Firefox, Chrome, Edge) that captures the open tab, logged in or not (not yet on the add-on stores). Pages convert end to end with **verified Auto Layout**: flex, wrap, baseline rows, block stacking and grids become stacks and fixed-track grids wherever a simulation reproduces the measured positions within 1 px, absolute positioning elsewhere. Boxes carry borders, radii, gradients (blended like CSS), shadows, blurs, opacity, blend, clipping, rotation and z-order. Each paragraph is one editable text layer with style runs, and CSS ellipsis truncation becomes Figma's native truncation (IR 1.4). Images are real image fills, inline SVG icons are editable vectors, and canvas, video and iframes arrive as raster islands. Captured pages can be diffed node by node against an older capture or against a Figma frame. See [docs/development.md](docs/development.md).
 
 ## Quickstart (development)
 
@@ -68,7 +68,44 @@ In the plugin, enter a URL, pick a viewport and press **Import website**. The se
 
 ### Capture the page you're looking at (browser extension)
 
-For logged-in pages, open dialogs and menus, use the browser extension (Firefox, Chrome, Edge). Run `pnpm extension:build`, then load `apps/extension/dist`: in Firefox via `about:debugging` → **Load Temporary Add-on…** (pick `manifest.json`), in Chrome via `chrome://extensions` → **Load unpacked**. On the page, click its toolbar button (or press **Alt+Shift+F**). The result tab gives you **Download .w2f.json**, or **Copy for the plugin**, then click the plugin's paste box and press **Ctrl+V**. It uses your browser's own login, and nothing leaves your machine. Details and differences from the CLI capture: [docs/extension.md](docs/extension.md).
+The extension captures the tab you have open, exactly as you see it: **logged-in pages, open dialogs and menus**, and dashboards whose inner panel scrolls. It uses your browser's own login, and nothing leaves your machine.
+
+| Browser | Status |
+|---|---|
+| Firefox 128+ | Works (tested end to end with Figma desktop) |
+| Chrome 121+, Edge, Brave, Opera, Vivaldi | Works in Chromium (automated tests); same engine, not tried in each browser |
+| Safari, mobile browsers | Not supported |
+
+**1. Build it** (again after every pull, together with `pnpm plugin:build`):
+
+```sh
+pnpm install
+pnpm extension:build   # writes apps/extension/dist
+```
+
+**2. Load it.** It isn't on the add-on stores yet:
+- **Firefox:** open `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…** → pick `apps/extension/dist/manifest.json`. Firefox removes temporary add-ons when it restarts, so load it again after a restart. After a rebuild, click **Reload** on its card.
+- **Chrome / Edge / Brave:** open `chrome://extensions` (Edge: `edge://extensions`) → turn on **Developer mode** → **Load unpacked** → pick the `apps/extension/dist` folder. After a rebuild, click the reload icon on its card.
+- Optional: pin **Web to Figma** to the toolbar from the puzzle-piece (extensions) menu.
+
+**3. Capture:**
+1. Open your page in a normal tab and wait until it has loaded. Log in, and open the dialog or menu if you want it in the design.
+2. On that tab, press **Alt+Shift+F**, or click the **Web to Figma** toolbar button.
+3. A **Web to Figma** result tab opens. If Firefox asks, choose **Allow access to the page's images**. Wait for **Ready**.
+
+**4. Import into Figma.** In Figma desktop, run **Plugins → Development → Web to Figma (dev)** (setup in the previous section), then either:
+- choose **Download .w2f.json** and drop the file onto the plugin, or
+- choose **Copy for the plugin**, click the plugin's paste box (*"Copied with the browser extension? Click here and press Ctrl+V."*) and press **Ctrl+V**.
+
+Then click **Build** if the plugin asks about fonts.
+
+**Good to know:**
+- The frame is as wide and tall as your browser window. For a mobile frame, open DevTools' responsive/device mode first.
+- Pages that scroll inside a panel are captured in full. With a dialog open, you get just the screen.
+- Canvas, video and iframes are copied from the screenshot, so only those visible on screen are included.
+- Browser pages can't be captured: error pages ("Problem loading page"), `about:`/`chrome://` pages, add-on stores and PDFs.
+
+More details, limits and permissions: [docs/extension.md](docs/extension.md).
 
 The plugin builds one frame per capture inside a Section. Each frame contains a hidden, locked **Reference screenshot** layer: unhide it to compare against the browser.
 
