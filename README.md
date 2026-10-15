@@ -105,6 +105,8 @@ Then click **Build** if the plugin asks about fonts.
 - Canvas, video and iframes are copied from the screenshot, so only those visible on screen are included.
 - Browser pages can't be captured: error pages ("Problem loading page"), `about:`/`chrome://` pages, add-on stores and PDFs.
 
+**Share with someone without the source:** run `pnpm share`. It builds both and writes `share/web-to-figma-<version>-<commit>.zip`, containing the plugin, the extension and an `INSTALL.txt` with the steps above. Send that zip; they unzip it and follow `INSTALL.txt`. It also writes `share/extension-store-upload.zip` for Mozilla signing or the Chrome Web Store.
+
 More details, limits and permissions: [docs/extension.md](docs/extension.md).
 
 The plugin builds one frame per capture inside a Section. Each frame contains a hidden, locked **Reference screenshot** layer: unhide it to compare against the browser.

@@ -47,6 +47,14 @@ desktop via **Plugins → Development → Import plugin from manifest…** with
    keep the old service running until users have updated.
 7. Keep `manifest.json` (the `(dev)` one) for local development.
 
+## Share without publishing
+
+`pnpm share` builds the plugin and the extension, then writes two files to the gitignored `share/` folder:
+- `web-to-figma-<version>-<commit>.zip` holds `INSTALL.txt`, `figma-plugin/` and `extension/`. Send it to someone who doesn't have the source.
+- `extension-store-upload.zip` has the extension files at the root, ready for addons.mozilla.org signing (an unlisted upload gives a permanent Firefox install) or the Chrome Web Store.
+
+Both parts must come from the same build, so resend the whole zip after changes. The plugin in it is the dev build, so its URL import needs a capture service on the friend's machine; the extension route needs nothing else.
+
 ## Publish the extension
 
 Not published yet; users load it unpacked ([extension.md](extension.md)). To list it on the Chrome Web Store:
