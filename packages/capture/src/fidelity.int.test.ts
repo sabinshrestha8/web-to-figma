@@ -307,6 +307,9 @@ describe("layout fixtures → IR", async () => {
     const title = zoomed.children[0];
     if (title?.type !== "text") throw new Error(`title is ${title?.type}`);
     expect(title.runs[0]?.style.size).toBeCloseTo(16 * 0.938, 1);
+    // Its transform in user space, not with the zoom (which the viewBox applies) baked in too.
+    const ring = walk(root).find((n) => n.name === "svg zoomed-ring");
+    expect(ring?.type === "vector" && ring.svg).toContain('transform="matrix(1, 0, 0, 1, 20, 20)"');
     expect(byId(root, "cta-row").layout).toMatchObject({
       mode: "stack",
       direction: "horizontal",

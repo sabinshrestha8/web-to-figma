@@ -50,7 +50,35 @@ export default function Nav() {
               Choose type
             </button>
           </div>
+          <svg aria-label="zoomed-ring" width="40" height="40" viewBox="0 0 40 40" data-zoomed-transforms>
+            <g transform="translate(20 20)">
+              <circle r="18" fill="teal" />
+            </g>
+          </svg>
         </div>
+        {/* Some Chrome versions report an SVG element's computed transform with the zoom applied. */}
+        <script
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: a fixed test shim, no user input
+          dangerouslySetInnerHTML={{
+            __html: `(() => {
+  const gcs = window.getComputedStyle;
+  window.getComputedStyle = function (el, ...rest) {
+    const cs = gcs.call(this, el, ...rest);
+    if (!(el instanceof SVGElement) || !el.closest("[data-zoomed-transforms]")) return cs;
+    return new Proxy(cs, {
+      get(t, p) {
+        if (p === "transform" && t.transform !== "none") {
+          const m = new DOMMatrix(t.transform), z = el.currentCSSZoom;
+          return "matrix(" + [m.a, m.b, m.c, m.d, m.e * z, m.f * z].join(", ") + ")";
+        }
+        const v = Reflect.get(t, p);
+        return typeof v === "function" ? v.bind(t) : v;
+      },
+    });
+  };
+})();`,
+          }}
+        />
       </main>
     </div>
   );

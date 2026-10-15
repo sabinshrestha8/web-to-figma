@@ -127,21 +127,26 @@ function inlineUses(clone: SVGSVGElement, viewport: { width: number; height: num
  * goes with the `style` attribute). A `transform` attribute is part of the computed value too, so this
  * replaces it losslessly. CSS transforms run around `transform-origin`, SVG ones around 0 0: the
  * origin is baked in. ponytail: individual `rotate`/`scale` properties and % translates are ignored.
+ * `k`: what this browser multiplies computed lengths in transforms by (see `transformZoom`).
  */
-function cssTransform(el: Element, cs: CSSStyleDeclaration): string | null {
+function cssTransform(el: Element, cs: CSSStyleDeclaration, k: number): string | null {
   const parts: string[] = [];
   if (cs.translate && cs.translate !== "none") {
     const [x = "0", y = "0"] = cs.translate.split(" ");
-    parts.push(`translate(${Number.parseFloat(x)} ${Number.parseFloat(y)})`);
+    parts.push(`translate(${Number.parseFloat(x) / k} ${Number.parseFloat(y) / k})`);
   }
   if (cs.transform && cs.transform !== "none") {
-    let [ox = 0, oy = 0] = cs.transformOrigin.split(" ").map(Number.parseFloat);
+    let [ox = 0, oy = 0] = cs.transformOrigin.split(" ").map((v) => Number.parseFloat(v) / k);
     if (cs.transformBox === "fill-box" && el instanceof SVGGraphicsElement) {
       const box = el.getBBox();
       ox += box.x;
       oy += box.y;
     }
-    parts.push(ox || oy ? `translate(${ox} ${oy}) ${cs.transform} translate(${-ox} ${-oy})` : cs.transform);
+    const m = new DOMMatrix(cs.transform);
+    const unzoom = (v: number) => Math.round((v / k) * 1e4) / 1e4;
+    const t =
+      k === 1 ? cs.transform : `matrix(${m.a}, ${m.b}, ${m.c}, ${m.d}, ${unzoom(m.e)}, ${unzoom(m.f)})`;
+    parts.push(ox || oy ? `translate(${ox} ${oy}) ${t} translate(${-ox} ${-oy})` : t);
   }
   return parts.length ? parts.join(" ") : null;
 }
@@ -179,6 +184,21 @@ function strip(clone: SVGSVGElement, normalizeColor: (value: string) => string) 
   }
 }
 
+/**
+ * Some Chrome versions report an SVG element's computed transform with the page's CSS `zoom` applied
+ * (a dashboard zoomed to 89% gave a pie's `translate(90 90)` as 80.01), which would draw it shifted
+ * once the viewBox scales it again. Measured on a probe in `svg`: 1 where the browser doesn't.
+ */
+function transformZoom(svg: SVGSVGElement): number {
+  if ((svg.currentCSSZoom ?? 1) === 1) return 1;
+  const probe = document.createElementNS(NS, "g");
+  probe.setAttribute("transform", "translate(100 0)");
+  svg.append(probe);
+  const k = new DOMMatrix(getComputedStyle(probe).transform).e / 100;
+  probe.remove();
+  return k > 0 ? k : 1;
+}
+
 /** Sanitized markup, drawn at the element's rendered size. */
 export function serializeSvg(
   svg: SVGSVGElement,
@@ -192,6 +212,7 @@ export function serializeSvg(
   const value = (cs: CSSStyleDeclaration, p: string) =>
     unitless(fragmentUrl(cs.getPropertyValue(p).replace(COLOR_FN, normalizeColor)));
   const hidden: Element[] = [];
+  const k = transformZoom(svg);
 
   src.forEach((el, i) => {
     const out = dst[i];
@@ -206,7 +227,7 @@ export function serializeSvg(
       if (v && (!parent || v !== value(parent, p))) out.setAttribute(p, v);
     }
     if (el !== svg) {
-      const transform = cssTransform(el, cs);
+      const transform = cssTransform(el, cs, k);
       if (transform) out.setAttribute("transform", transform);
     }
     if (TEXT.has(el.localName)) {
