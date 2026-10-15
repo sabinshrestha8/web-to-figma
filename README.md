@@ -105,11 +105,25 @@ Then click **Build** if the plugin asks about fonts.
 - Canvas, video and iframes are copied from the screenshot, so only those visible on screen are included.
 - Browser pages can't be captured: error pages ("Problem loading page"), `about:`/`chrome://` pages, add-on stores and PDFs.
 
-**Share with someone without the source:** run `pnpm share`. It builds both and writes `share/web-to-figma-<version>-<commit>.zip`, containing the plugin, the extension and an `INSTALL.txt` with the steps above. Send that zip; they unzip it and follow `INSTALL.txt`. It also writes `share/extension-store-upload.zip` for Mozilla signing or the Chrome Web Store.
+Sending it to someone without the source: [Share the plugin and extension](#share-the-plugin-and-extension).
 
 More details, limits and permissions: [docs/extension.md](docs/extension.md).
 
 The plugin builds one frame per capture inside a Section. Each frame contains a hidden, locked **Reference screenshot** layer: unhide it to compare against the browser.
+
+### Share the plugin and extension
+
+To give the Figma plugin and the browser extension to someone who doesn't have the source:
+
+```sh
+pnpm share
+```
+
+It builds both, then writes two files to the gitignored `share/` folder:
+- `web-to-figma-<version>-<commit>.zip` holds `INSTALL.txt`, `figma-plugin/` and `extension/`. Send this one. They unzip it somewhere they'll keep it and follow `INSTALL.txt`: import `figma-plugin/manifest.json` in Figma desktop, load `extension/` in their browser, then capture with **Alt+Shift+F**.
+- `extension-store-upload.zip` has the extension files at the root, for addons.mozilla.org signing or the Chrome Web Store ([docs/release.md](docs/release.md)).
+
+Commit first: a build from uncommitted changes still works, but it's labelled "with uncommitted changes" and the commit in the name won't identify it. After a fix, run `pnpm share` again and send the new zip. Both parts must come from the same zip. They replace the old folder with the new one, then reload the extension (`chrome://extensions` reload icon, or **Load Temporary Add-on…** again in Firefox). The plugin's URL import needs a capture service; the extension route needs nothing else.
 
 ### Measure Figma fidelity
 
