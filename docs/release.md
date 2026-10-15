@@ -57,12 +57,18 @@ Both parts must come from the same build, so resend the whole zip after changes.
 
 ## Publish the extension
 
-Not published yet; users load it unpacked ([extension.md](extension.md)). To list it on the Chrome Web Store:
-1. Add icons (16, 48 and 128 px) to `apps/extension/manifest.json`; the store requires a 128 px icon.
-2. `pnpm extension:build`, then zip the *contents* of `apps/extension/dist` (with `manifest.json` at the root of the zip).
-3. In the Chrome Web Store developer dashboard: upload the zip, and fill in the listing, the privacy practices and a privacy policy. Nothing is collected or sent: the capture stays on the device until the user downloads or copies it.
-4. Justify each permission: `activeTab` + `scripting` to read the page the user captures; `<all_urls>` host access to read that page's images from any origin with the user's cookies. Broad host access gets a longer review.
-5. Updates: bump `version` in the manifest, rebuild, upload.
+Not published yet; users load it unpacked ([extension.md](extension.md)). `pnpm share` writes `share/extension-store-upload.zip` (the built extension with `manifest.json` at the root), which is what both stores take. Icons are in `apps/extension/icons` (`icon.svg` is the source; `node icons/render.mjs` redraws the PNGs).
+
+**Firefox, signed but unlisted** (installs permanently, no public listing):
+1. Sign in at addons.mozilla.org (a free account), open the Developer Hub and choose **Submit a New Add-on**.
+2. Choose **On your own** (self-distribution), upload `extension-store-upload.zip`, and answer the source-code question: the build is minified, so upload a zip of the repository source with the build steps (`pnpm install`, `pnpm extension:build`) if asked.
+3. Signing is automatic and usually takes minutes. Download the signed `.xpi`; dropping it on Firefox (or opening it via `about:addons` → gear → **Install Add-on From File**) installs it for good.
+4. Updates: bump `version` in the manifest, rebuild, upload again. The add-on id `web-to-figma@w2f.local` must not change.
+
+**Chrome Web Store:**
+1. In the Chrome Web Store developer dashboard (one-time registration fee): upload `extension-store-upload.zip`, and fill in the listing, the privacy practices and a privacy policy. Nothing is collected or sent: the capture stays on the device until the user downloads or copies it.
+2. Justify each permission: `activeTab` + `scripting` to read the page the user captures; `<all_urls>` host access to read that page's images from any origin with the user's cookies. Broad host access gets a longer review.
+3. Updates: bump `version` in the manifest, rebuild, upload.
 
 ## Post-release
 
