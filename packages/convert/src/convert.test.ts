@@ -274,14 +274,20 @@ describe("snapshotToIR box fidelity", () => {
     expect(convert(snap(60, "none")).diagnostics).toEqual([]);
   });
 
-  it("reports painted pseudo-elements (no DOM node to measure)", () => {
-    const snap = page((body) => [
-      {
-        ...el(body.id, "div", { x: 0, y: 0, width: 100, height: 10 }, bg("rgb(1, 1, 1)")),
-        pseudo: "before" as const,
-      },
-    ]);
-    expect(convert(snap).diagnostics.map((d) => d.code)).toContain("PSEUDO_ELEMENT_SKIPPED");
+  it("reports painted pseudo-elements (no DOM node to measure), and rasterizes them on a leaf", () => {
+    const box = (body: RawElement) => ({
+      ...el(body.id, "div", { x: 0, y: 0, width: 100, height: 10 }, bg("rgb(1, 1, 1)")),
+      pseudo: "before" as const,
+    });
+    const withChild = page((body) => {
+      const b = box(body);
+      return [b, el(b.id, "span", { x: 0, y: 0, width: 10, height: 10 }, bg("rgb(2, 2, 2)"))];
+    });
+    expect(convert(withChild).diagnostics.map((d) => d.code)).toContain("PSEUDO_ELEMENT_SKIPPED");
+    // An icon font's <i>: nothing but its ::before glyph, so a picture of it.
+    const icon = page((body) => [box(body)]);
+    expect(rasterPlan(icon, 16_000, () => false).map((r) => r.key)).toEqual(["el:2"]);
+    expect(convert(icon).diagnostics.map((d) => d.code)).not.toContain("PSEUDO_ELEMENT_SKIPPED");
   });
 
   it("draws an outline as an outside stroke, unless the box already has a border", () => {

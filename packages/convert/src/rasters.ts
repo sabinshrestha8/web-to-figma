@@ -44,6 +44,8 @@ export function islandReason(
     return "native checkbox/radio";
   }
   if (!leaf) return null;
+  // Icon fonts (Font Awesome's <i class="fa-…">) draw their glyph in ::before; Figma has no such font.
+  if (el.pseudo) return "::before/::after content, such as an icon font glyph";
   const prop = PIXEL_ONLY.find((p) => el.style[p] !== "none" && el.style[p] !== "");
   return prop ? prop : null;
 }

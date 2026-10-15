@@ -169,6 +169,11 @@ describe("svg-icons fixture → IR", async () => {
     }
   });
 
+  it("draws an icon font's ::before glyph as a picture of it", () => {
+    const icon = walk(b.ir.captures[0]!.root).find((n) => n.name === "i icon-font");
+    expect(icon?.type === "box" && icon.fills.map((f) => f.type)).toEqual(["image"]);
+  });
+
   it("resolves currentColor, classes, sprites and display:none into plain attributes", () => {
     const home = svgOf("icon-home").svg;
     expect(home).toMatch(/stroke="rgba\(\d+, \d+, \d+, 1\)"/);

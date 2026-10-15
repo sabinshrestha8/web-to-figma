@@ -108,6 +108,8 @@ export default function SvgIcons() {
             </tspan>
           </text>
         </svg>
+        {/* An icon font's <i>, as Font Awesome draws it: nothing but a ::before glyph. */}
+        <i data-testid="icon-font" className="text-3xl text-amber-500 not-italic before:content-['★']" />
         {/* biome-ignore lint/security/noDangerouslySetInnerHtml: hostile markup the sanitizer must strip */}
         <span dangerouslySetInnerHTML={{ __html: HOSTILE }} />
       </section>
