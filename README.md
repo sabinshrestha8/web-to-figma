@@ -68,7 +68,7 @@ In the plugin, enter a URL, pick a viewport and press **Import website**. The se
 
 ### Capture the page you're looking at (browser extension)
 
-For logged-in pages, open dialogs and menus, use the browser extension (Firefox, Chrome, Edge). Run `pnpm extension:build`, then load `apps/extension/dist`: in Firefox via `about:debugging` → **Load Temporary Add-on…** (pick `manifest.json`), in Chrome via `chrome://extensions` → **Load unpacked**. On the page, click its toolbar button (or press **Alt+Shift+F**). The result tab gives you **Download .w2f.json**, or **Copy for the plugin** followed by **Ctrl+V** in the plugin. It uses your browser's own login, and nothing leaves your machine. Details and differences from the CLI capture: [docs/extension.md](docs/extension.md).
+For logged-in pages, open dialogs and menus, use the browser extension (Firefox, Chrome, Edge). Run `pnpm extension:build`, then load `apps/extension/dist`: in Firefox via `about:debugging` → **Load Temporary Add-on…** (pick `manifest.json`), in Chrome via `chrome://extensions` → **Load unpacked**. On the page, click its toolbar button (or press **Alt+Shift+F**). The result tab gives you **Download .w2f.json**, or **Copy for the plugin**, then click the plugin's paste box and press **Ctrl+V**. It uses your browser's own login, and nothing leaves your machine. Details and differences from the CLI capture: [docs/extension.md](docs/extension.md).
 
 The plugin builds one frame per capture inside a Section. Each frame contains a hidden, locked **Reference screenshot** layer: unhide it to compare against the browser.
 

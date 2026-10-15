@@ -118,7 +118,7 @@ async function main() {
   });
   $("copy").addEventListener("click", async () => {
     await navigator.clipboard.writeText(json);
-    $("copy").textContent = "Copied: paste it in the plugin (Ctrl+V)";
+    $("copy").textContent = "Copied: click the plugin's paste box, then Ctrl+V";
   });
 }
 

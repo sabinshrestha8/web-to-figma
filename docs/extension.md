@@ -7,7 +7,7 @@ toolbar button / Alt+Shift+F
   service worker: captureVisibleTab (PNG of the viewport) → inject collector.js (isolated world) → collect()
   result.html (extension page): fetch images (your cookies) → decode → crop islands from the screenshot
                                 → snapshotToIR → parseDocument → Download .w2f.json / Copy for the plugin
-Figma plugin: drop the file, or Ctrl+V the copied bundle
+Figma plugin: drop the file, or Ctrl+V the copied bundle into its paste box
 ```
 
 ## Install (unpacked, for now)
@@ -25,7 +25,7 @@ pnpm extension:build      # writes apps/extension/dist
 
 1. Open the page and get it into the state you want: logged in, dialog open, scrolled to the top.
 2. Click the **Web to Figma** toolbar button (pin it from the puzzle-piece/extensions menu), or press **Alt+Shift+F**. The shortcut doesn't move focus, so menus that close on blur stay open. You can change it at `chrome://extensions/shortcuts`.
-3. A result tab opens and converts the capture. Choose **Download .w2f.json** and drop the file into the plugin, or choose **Copy for the plugin**, click the plugin window and press **Ctrl+V**.
+3. A result tab opens and converts the capture. Choose **Download .w2f.json** and drop the file into the plugin, or choose **Copy for the plugin**, click the plugin's paste box ("Copied with the browser extension?…") and press **Ctrl+V**. Figma desktop sends Ctrl+V to the canvas unless a plugin text field has focus.
 
 The frame size is your window's viewport. For a mobile or tablet frame, open DevTools device mode at the size you want, then capture.
 
