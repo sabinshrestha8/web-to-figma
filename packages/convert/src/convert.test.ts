@@ -646,8 +646,9 @@ describe("inline formatting contexts", () => {
       ];
     });
     const root = convert(snap).capture.root;
-    // The space after an inline box is drawn (and inside the rect " now" starts at): keep it.
-    expect(texts(snap).map((t) => t.characters)).toEqual(["Run", "pnpm", " now"]);
+    // Spaces next to an inline box are drawn (and inside the text's rects): keep them, or Auto Layout
+    // packs "Run" against the box.
+    expect(texts(snap).map((t) => t.characters)).toEqual(["Run ", "pnpm", " now"]);
     expect(all(root).find((n) => n.name === "code")?.type).toBe("box");
   });
 

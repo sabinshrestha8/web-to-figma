@@ -262,12 +262,15 @@ describe("article fixture → IR", async () => {
 
   it("keeps an inline element with its own box (code) as a box between text nodes", () => {
     expect(["Run", "pnpm w2f", " against any page."].map((s) => text(s).characters)).toEqual([
-      "Run",
+      "Run ",
       "pnpm w2f",
       " against any page.",
     ]);
     const code = walk(b.ir.captures[0]!.root).find((n) => n.name.startsWith("code"));
     expect(code?.type).toBe("box");
+    // "Run " ends where the box starts: its space is inside the measured width, so nothing touches.
+    const run = text("Run").bounds;
+    expect(Math.abs(run.x + run.width - code!.bounds.x)).toBeLessThan(1);
   });
 
   it("keeps the requested family first so the plugin can report it missing", () => {

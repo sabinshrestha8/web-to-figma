@@ -13,6 +13,8 @@ export interface InlineGroup {
   nodes: (RawElement | RawText)[];
   /** Follows an inline box on the same line: its leading space is drawn (and inside its rect). */
   afterInlineBox: boolean;
+  /** Precedes an inline box: its trailing space is drawn too ("You have <b>20</b>"). */
+  beforeInlineBox: boolean;
 }
 
 export interface TextContext {
@@ -92,6 +94,7 @@ export function inlineGroups(
   let prev: RawElement | null = null;
   for (const k of kids) {
     if (k.kind === "element" && !isPlainInline(k, root, kidsOf)) {
+      if (group) group.beforeInlineBox = k.style.display.startsWith("inline");
       group = null;
       prev = k;
       out.push(k);
@@ -102,6 +105,7 @@ export function inlineGroups(
         kind: "inline",
         nodes: [],
         afterInlineBox: prev?.style.display.startsWith("inline") ?? false,
+        beforeInlineBox: false,
       };
       out.push(group);
     }
@@ -200,7 +204,12 @@ function segments(nodes: (RawElement | RawText)[], el: RawElement, kidsOf: KidsO
 const sameStyle = (a: TextStyle, b: TextStyle) => JSON.stringify(a) === JSON.stringify(b);
 
 /** Characters and style runs of a group, with white space collapsed across element boundaries. */
-function characterRuns(segs: Segment[], collapsible: boolean, keepLeadingSpace: boolean, ctx: TextContext) {
+function characterRuns(
+  segs: Segment[],
+  collapsible: boolean,
+  keep: { leading: boolean; trailing: boolean },
+  ctx: TextContext,
+) {
   let characters = "";
   const runs: TextRun[] = [];
   const dropLast = () => {
@@ -211,7 +220,7 @@ function characterRuns(segs: Segment[], collapsible: boolean, keepLeadingSpace: 
   for (const seg of segs) {
     let t = seg.text;
     if (collapsible) {
-      const lineStart = characters === "" ? !keepLeadingSpace : /[ \n]$/.test(characters);
+      const lineStart = characters === "" ? !keep.leading : /[ \n]$/.test(characters);
       if (t.startsWith(" ") && lineStart) t = t.slice(1);
       if (t.startsWith("\n") && characters.endsWith(" ")) dropLast(); // a space before a break is not drawn
     }
@@ -222,7 +231,7 @@ function characterRuns(segs: Segment[], collapsible: boolean, keepLeadingSpace: 
     else runs.push({ start: characters.length, end: characters.length + t.length, style });
     characters += t;
   }
-  if (collapsible) while (characters.endsWith(" ")) dropLast();
+  if (collapsible) while (characters.endsWith(keep.trailing ? "  " : " ")) dropLast();
   if (characters.endsWith("\n")) dropLast(); // a final line break does not open a new line
   return { characters, runs };
 }
@@ -242,7 +251,12 @@ export function inlineText(group: InlineGroup, root: RawElement, ctx: TextContex
   if (!first || !head || first.y >= ctx.maxY) return null;
 
   const collapsible = !/^(pre|pre-wrap|break-spaces)$/.test(root.style["white-space"]);
-  const { characters, runs } = characterRuns(segs, collapsible, group.afterInlineBox, ctx);
+  const { characters, runs } = characterRuns(
+    segs,
+    collapsible,
+    { leading: group.afterInlineBox, trailing: group.beforeInlineBox },
+    ctx,
+  );
   if (!characters.trim() || runs.every((r) => r.style.color.a === 0)) return null;
 
   const id = `${ctx.captureId}:${head.id}`;
