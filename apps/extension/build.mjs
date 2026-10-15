@@ -1,5 +1,5 @@
 // Bundles the extension into dist/ (load it unpacked from there, or zip it for the Chrome Web Store).
-import { copyFileSync, mkdirSync, rmSync } from "node:fs";
+import { copyFileSync, cpSync, mkdirSync, rmSync } from "node:fs";
 import { build } from "esbuild";
 
 rmSync("dist", { recursive: true, force: true });
@@ -19,4 +19,5 @@ await Promise.all([
 ]);
 copyFileSync("manifest.json", "dist/manifest.json");
 copyFileSync("src/result.html", "dist/result.html");
+cpSync("icons", "dist/icons", { recursive: true, filter: (f) => !/\.(svg|mjs)$/.test(f) });
 console.log("dist/ ready: chrome://extensions → Developer mode → Load unpacked → apps/extension/dist");

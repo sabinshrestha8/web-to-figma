@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <title>Web to Figma</title>
+  <rect width="128" height="128" rx="28" fill="#4F46E5"/>
+  <rect x="20" y="26" width="88" height="76" rx="10" fill="none" stroke="#fff" stroke-width="9"/>
+  <path d="M20 47h88" stroke="#fff" stroke-width="9"/>
+  <rect x="34" y="60" width="28" height="28" rx="4" fill="#fff"/>
+  <rect x="70" y="60" width="24" height="10" rx="3" fill="#C7D2FE"/>
+  <rect x="70" y="78" width="24" height="10" rx="3" fill="#C7D2FE"/>
+</svg>

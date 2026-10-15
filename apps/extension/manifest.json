@@ -4,7 +4,17 @@
   "version": "0.1.0",
   "description": "Capture the page you're looking at, logged in or not, for the Web to Figma plugin.",
   "minimum_chrome_version": "121",
-  "action": { "default_title": "Capture this page for Figma (Alt+Shift+F)" },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "96": "icons/icon-96.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_title": "Capture this page for Figma (Alt+Shift+F)",
+    "default_icon": { "16": "icons/icon-16.png", "32": "icons/icon-32.png" }
+  },
   "background": { "service_worker": "background.js", "scripts": ["background.js"] },
   "permissions": ["activeTab", "scripting"],
   "host_permissions": ["<all_urls>"],
