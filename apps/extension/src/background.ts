@@ -21,6 +21,8 @@ async function unrollInTab(maxHeight: number): Promise<number> {
     '[role="dialog"],[aria-modal="true"],dialog[open],[role="menu"],[role="listbox"]',
   );
   if (Array.from(overlays).some((el) => el.getClientRects().length > 0)) return 0;
+  // Sections that load or fade in once scrolled to (they stay shown on most sites), then back.
+  await __w2f.scrollThrough(maxHeight);
   await __w2f.scrollPanels(maxHeight);
   let added = __w2f.unrollInPlace(maxHeight);
   // Dashboards often render widgets only once they're in view: let them, then grow again.
@@ -72,6 +74,7 @@ async function captureTab(tab: chrome.tabs.Tab): Promise<void> {
         args: [LIMITS.maxCaptureHeight],
       });
       const expanded = unroll?.result ?? 0;
+      await chrome.scripting.executeScript({ target, func: () => __w2f.settleAnimations(3000) });
       // Chrome refuses more than 2 captures a second.
       let last = 0;
       const shoot = async () => {

@@ -13,6 +13,7 @@ const ROUTES = [
   "/app-shell-nested",
   "/app-shell-panel",
   "/app-shell-simplebar",
+  "/reveal",
   "/article",
   "/image-heavy",
   "/svg-icons",

@@ -504,15 +504,32 @@ export async function scrollPanels(maxHeight: number): Promise<boolean> {
   return nextFrames();
 }
 
-/** Scroll the page in viewport steps so lazy content loads, then return to the top. */
+/**
+ * Scroll the page in viewport steps so lazy content loads and scroll-reveal sections (AOS and the
+ * like, `opacity: 0` until in view) show, then return to where it was. Steps outlast the ~100 ms
+ * throttle such libraries put on their scroll handler.
+ */
 export async function scrollThrough(maxHeight: number): Promise<boolean> {
+  const { scrollX: x, scrollY: start } = window;
   const step = Math.max(200, window.innerHeight);
   const end = Math.min(document.documentElement.scrollHeight, maxHeight);
   for (let y = 0; y < end; y += step) {
-    window.scrollTo({ top: y, behavior: "instant" });
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    window.scrollTo({ left: x, top: y, behavior: "instant" });
+    await new Promise((resolve) => setTimeout(resolve, 120));
   }
-  window.scrollTo({ top: 0, behavior: "instant" });
+  window.scrollTo({ left: x, top: start, behavior: "instant" });
+  await new Promise((resolve) => setTimeout(resolve, 120));
+  return nextFrames();
+}
+
+/** Wait (up to `maxMs`) for finite transitions and animations to end, e.g. sections fading in. */
+export async function settleAnimations(maxMs: number): Promise<boolean> {
+  const until = Date.now() + maxMs;
+  const running = () =>
+    document
+      .getAnimations()
+      .some((a) => a.playState === "running" && a.effect?.getComputedTiming().endTime !== Infinity);
+  while (running() && Date.now() < until) await new Promise((resolve) => setTimeout(resolve, 100));
   return nextFrames();
 }
 

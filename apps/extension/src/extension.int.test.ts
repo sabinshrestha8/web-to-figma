@@ -209,6 +209,17 @@ describe("browser extension", () => {
     },
   );
 
+  it("scrolls the page through so sections that fade in on scroll show, then scrolls back", async () => {
+    const page = await context.newPage();
+    await page.goto(`${fixture}/reveal`);
+    await page.evaluate(() => window.scrollTo(0, 300));
+    const { text } = await capture(page);
+    for (const s of ["Features", "Pricing", "Testimonials", "Get in touch"]) expect(text).toContain(s);
+    expect(text).not.toMatch(/"opacity":0\./); // shown in full, not caught mid-fade
+    expect(await page.evaluate(() => window.scrollY)).toBe(300);
+    await page.close();
+  });
+
   it("leaves the page alone while a dialog is open", async () => {
     const page = await context.newPage();
     await page.goto(`${fixture}/dialog`);
