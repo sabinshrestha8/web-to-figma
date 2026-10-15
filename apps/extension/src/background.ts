@@ -21,6 +21,7 @@ async function unrollInTab(maxHeight: number): Promise<number> {
     '[role="dialog"],[aria-modal="true"],dialog[open],[role="menu"],[role="listbox"]',
   );
   if (Array.from(overlays).some((el) => el.getClientRects().length > 0)) return 0;
+  await __w2f.scrollPanels(maxHeight);
   let added = __w2f.unrollInPlace(maxHeight);
   // Dashboards often render widgets only once they're in view: let them, then grow again.
   for (let round = 0; added > 0 && round < 5; round++) {
@@ -33,10 +34,19 @@ async function unrollInTab(maxHeight: number): Promise<number> {
   return added;
 }
 
-function collectInTab(maxNodes: number, expanded: number): Captured {
+function collectInTab(maxNodes: number, maxHeight: number, grownBy: number): Captured {
   try {
+    // Page scripts ran since (resize observers, "100vh" hooks) and may have put heights back: grow
+    // again in this same task, so nothing runs between it and the collect.
+    const expanded = grownBy ? __w2f.unrollInPlace(maxHeight) : 0;
     const { snapshot } = __w2f.collect({ maxNodes, dpr: window.devicePixelRatio });
-    return { snapshot, scroll: { x: window.scrollX, y: window.scrollY }, ...(expanded ? { expanded } : {}) };
+    const grown = __w2f.unrollLog();
+    return {
+      snapshot,
+      scroll: { x: window.scrollX, y: window.scrollY },
+      ...(expanded ? { expanded } : {}),
+      ...(grown ? { grown } : {}),
+    };
   } finally {
     __w2f.restoreUnroll();
   }
@@ -65,7 +75,7 @@ async function captureTab(tab: chrome.tabs.Tab): Promise<void> {
       const [run] = await chrome.scripting.executeScript({
         target,
         func: collectInTab,
-        args: [LIMITS.maxElements, expanded],
+        args: [LIMITS.maxElements, LIMITS.maxCaptureHeight, expanded],
       });
       if (!run?.result) throw new Error("the page returned nothing");
       handoff = { ...run.result, screenshot };

@@ -288,52 +288,64 @@ export function hiddenScrollHeight(): number {
 }
 
 const unrolled = new Map<HTMLElement, string | null>();
+const scrolled = new Map<HTMLElement, number>();
 /** The unroll in progress, so a later call can grow it further (content rendered on coming into view). */
-let unroll: { scrollers: HTMLElement[]; windowTall: HTMLElement[]; added: number } | null = null;
+let unroll: {
+  targets: Set<HTMLElement>;
+  /** Grew without showing more (its script resets its height, or its content grows with it). */
+  stuck: Set<HTMLElement>;
+  windowTall: HTMLElement[];
+  added: number;
+  log: string[];
+} | null = null;
 
 const hides = (el: Element) => el.scrollHeight - el.clientHeight;
 
-/** The scroller inside `el` (at least half its width) hiding the most, or null. */
-function innerScroller(el: HTMLElement): HTMLElement | null {
-  let best: HTMLElement | null = null;
-  for (const d of Array.from(el.querySelectorAll<HTMLElement>("*"))) {
-    if (hides(d) <= 1 || d.clientWidth < el.clientWidth / 2) continue;
-    if (!/^(auto|scroll|overlay)$/.test(getComputedStyle(d).overflowY)) continue;
-    if (!best || hides(d) > hides(best)) best = d;
-  }
-  return best;
+/**
+ * Elements cutting content off at their bottom that are part of the page's frame: at least half the
+ * window each way, so a sidebar, a card's scrolling list, a collapsed accordion or a "show more" box
+ * is left alone. Deepest first: an outer one's hidden part may be the inner one's.
+ */
+function clippers(skip: Set<HTMLElement>): HTMLElement[] {
+  const found = Array.from(document.querySelectorAll<HTMLElement>("body *")).filter(
+    (el) =>
+      hides(el) > 1 &&
+      !skip.has(el) &&
+      // Closed drawers and hidden overlays still have a size.
+      el.checkVisibility({ visibilityProperty: true, opacityProperty: true }) &&
+      el.clientWidth >= window.innerWidth / 2 &&
+      el.clientHeight >= window.innerHeight / 2 &&
+      /^(auto|scroll|overlay|hidden|clip)$/.test(getComputedStyle(el).overflowY),
+  );
+  return found.filter((el) => !found.some((d) => d !== el && el.contains(d)));
 }
 
 /**
- * The extension's `hiddenScrollHeight` fix: it can't make the window taller, so it grows the main
- * inner scroller and every ancestor by what the scroller hides (up to `maxHeight` in all), until
- * `restoreUnroll`. Elements as tall as the window (100vh or `inset-y-0` sidebars) grow by the same
- * amount, as they would in a taller window. A scroller that still hides as much after growing holds
- * a full-height scroller of its own (summary + `h-full` panel): that one is grown next, then the outer
- * one again (the inner one now has a fixed height, so it converges). Call again
- * after the page reacts (lazy widgets that render once in view) to grow by what it hides now.
- * Returns the px added in all.
+ * The extension's `hiddenScrollHeight` fix: it can't make the window taller, so each panel that cuts
+ * content off (the scrolling `<main>`, a fixed-height panel inside it, a full-height panel under a
+ * summary) grows by what it hides, its ancestors with it, innermost first, until none hides anything
+ * (up to `maxHeight` in all) or `restoreUnroll`. Each is grown from its top, wherever the user had
+ * scrolled it. Elements as tall as the window (100vh or `inset-y-0` sidebars) grow to the new height,
+ * as they would in a taller window. Call again after the page reacts (lazy widgets that render once
+ * in view) to grow by what it hides now. Returns the px added in all.
  */
 export function unrollInPlace(maxHeight: number): number {
   if (!unroll) {
     if (hiddenScrollHeight() <= 1) return 0;
-    const scroller = mainScroller();
-    if (!(scroller instanceof HTMLElement)) return 0;
     // ponytail: "as tall as the window" stands in for 100vh, which computed styles don't reveal.
-    // Not around or inside the scroller: growing its content would change what it hides.
     const windowTall = Array.from(document.querySelectorAll<HTMLElement>("body *")).filter(
-      (el) =>
-        !el.contains(scroller) &&
-        !scroller.contains(el) &&
-        Math.abs(el.getBoundingClientRect().height - window.innerHeight) <= 1,
+      (el) => Math.abs(el.getBoundingClientRect().height - window.innerHeight) <= 1,
     );
-    unroll = { scrollers: [scroller], windowTall, added: 0 };
+    unroll = { targets: new Set(), stuck: new Set(), windowTall, added: 0, log: [] };
   }
-  const { scrollers } = unroll;
-  for (let round = 0; round < 8; round++) {
-    // The innermost scroller still hiding something; outer ones get their turn once it shows all.
-    while (scrollers.length > 1 && hides(scrollers.at(-1) as HTMLElement) <= 1) scrollers.pop();
-    const target = scrollers.at(-1) as HTMLElement;
+  const { targets, stuck } = unroll;
+  for (let round = 0; round < 12; round++) {
+    const target = clippers(stuck).sort((a, b) => hides(b) - hides(a))[0];
+    if (!target) break;
+    if (target.scrollTop > 0) {
+      if (!scrolled.has(target)) scrolled.set(target, target.scrollTop);
+      target.scrollTop = 0;
+    }
     const hidden = hides(target);
     const extra = Math.min(hidden, maxHeight - window.innerHeight - unroll.added);
     if (extra <= 1) break;
@@ -348,22 +360,78 @@ export function unrollInPlace(maxHeight: number): number {
           el === document.documentElement || el === document.body ? window.innerHeight : 0,
         ),
       });
+    const before = chain.map(({ el }) => ({ el, style: el.getAttribute("style"), had: unrolled.has(el) }));
     for (const { el, height } of chain) grow(el, height + extra);
-    unroll.added += extra;
-    if (hides(target) >= hidden - 1) {
-      const inner = innerScroller(target);
-      if (!inner) break;
-      scrollers.push(inner);
+    if (hides(target) > hidden - extra / 2) {
+      // Growing it didn't show (much) more: undo, or every round would add blank height.
+      for (const { el, style, had } of before) {
+        if (style === null) el.removeAttribute("style");
+        else el.setAttribute("style", style);
+        if (!had) unrolled.delete(el);
+      }
+      stuck.add(target);
+      unroll.log.push(
+        `${describe(target)} (left as is: hid ${Math.round(hidden)}px, still ${Math.round(hides(target))}px after growing ${Math.round(extra)}px)`,
+      );
+      continue;
     }
+    targets.add(target);
+    unroll.added += extra;
+    unroll.log.push(`${describe(target)} +${Math.round(extra)}px`);
   }
+  if (targets.size > 0) unroll.added = contain(targets);
+  // Not around or inside a grown panel: those are sized already, or growing them changes what it hides.
   const full = window.innerHeight + unroll.added;
-  for (const el of unroll.windowTall) if (el.getBoundingClientRect().height < full - 1) grow(el, full);
+  for (const el of unroll.windowTall) {
+    if ([...targets].some((t) => t.contains(el) || el.contains(t))) continue;
+    if (el.getBoundingClientRect().height < full - 1) grow(el, full);
+  }
   return unroll.added;
 }
 
+const describe = (el: Element) =>
+  `${el.tagName.toLowerCase()}${el.id ? `#${el.id}` : ""}${Array.from(el.classList)
+    .slice(0, 3)
+    .map((c) => `.${c}`)
+    .join("")}`;
+
+/** What the unroll in progress grew (or gave up on), for the diagnostic. */
+export function unrollLog(): string {
+  return unroll?.log.join("; ") ?? "";
+}
+
+const px = (v: string) => Number.parseFloat(v) || 0;
+/** Padding and border below the content box. */
+const below = (cs: CSSStyleDeclaration) => px(cs.paddingBottom) + px(cs.borderBottomWidth);
+
+/**
+ * Each grown panel's ancestors reach at least its bottom (their own heights can't be trusted to: a
+ * flex item's basis or a shell's script may have sized them) and html/body end exactly where the
+ * content does, so nothing is cut off and no blank page follows. Returns the px added to the window.
+ */
+function contain(targets: Set<HTMLElement>): number {
+  const root = document.documentElement;
+  let end = window.innerHeight;
+  for (const t of targets) {
+    let child: HTMLElement = t;
+    for (let el = t.parentElement; el && el !== document.body && el !== root; el = el.parentElement) {
+      const r = el.getBoundingClientRect();
+      const need = child.getBoundingClientRect().bottom - r.top + below(getComputedStyle(el));
+      if (r.height < need - 0.5) grow(el, need);
+      child = el;
+    }
+    end = Math.max(end, child.getBoundingClientRect().bottom - root.getBoundingClientRect().top);
+  }
+  for (const el of [document.body, root]) grow(el, end);
+  return end - window.innerHeight;
+}
+
+/** Sets `el`'s border-box height (whatever its box-sizing) until `restoreUnroll`. */
 function grow(el: HTMLElement, height: number): void {
   if (!unrolled.has(el)) unrolled.set(el, el.getAttribute("style"));
-  el.style.setProperty("height", `${height}px`, "important");
+  const cs = getComputedStyle(el);
+  const extra = cs.boxSizing === "content-box" ? below(cs) + px(cs.paddingTop) + px(cs.borderTopWidth) : 0;
+  el.style.setProperty("height", `${Math.max(0, height - extra)}px`, "important");
   el.style.setProperty("max-height", "none", "important");
 }
 
@@ -372,9 +440,32 @@ export function restoreUnroll(): boolean {
     if (style === null) el.removeAttribute("style");
     else el.setAttribute("style", style);
   }
+  for (const [el, top] of scrolled) el.scrollTop = top;
   unrolled.clear();
+  scrolled.clear();
   unroll = null;
   return true;
+}
+
+/**
+ * `scrollThrough` for app shells: scroll each panel that cuts content off from top to bottom, a
+ * screen at a time, so widgets that render on coming into view do (once grown, they'd sit below the
+ * window, where nothing ever scrolls to them). Then each goes back to where it was.
+ */
+export async function scrollPanels(maxHeight: number): Promise<boolean> {
+  if (hiddenScrollHeight() <= 1) return true;
+  for (const el of clippers(new Set())) {
+    const start = el.scrollTop;
+    const end = el.scrollHeight - el.clientHeight;
+    for (let y = 0; y <= Math.min(end, maxHeight); y += Math.max(200, el.clientHeight * 0.8)) {
+      el.scrollTop = y;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    el.scrollTop = el.scrollHeight - el.clientHeight;
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    el.scrollTop = start;
+  }
+  return nextFrames();
 }
 
 /** Scroll the page in viewport steps so lazy content loads, then return to the top. */

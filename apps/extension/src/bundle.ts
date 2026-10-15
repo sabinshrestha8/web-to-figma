@@ -27,6 +27,8 @@ export interface Captured {
   scroll: { x: number; y: number };
   /** Px the page's inner scroller was grown by so all of it shows (`unrollInPlace`). */
   expanded?: number;
+  /** Which elements were grown, and by how much (`unrollLog`). */
+  grown?: string;
 }
 
 /** The browser-only parts, injected so the assembly is testable in Node. */
@@ -74,11 +76,12 @@ export async function toBundle(c: Captured, deps: Deps): Promise<Result<Bundle>>
     diagnostics.push(
       diag(
         "SCROLL_CONTAINER_EXPANDED",
-        `the page scrolls inside an element, not the document; it was grown by ${Math.round(c.expanded)}px so all of it shows (elements sized to the window, e.g. 100vh sidebars, keep the window's height)`,
+        `the page scrolls inside an element, not the document; it was grown by ${Math.round(c.expanded)}px so all of it shows (elements sized to the window, e.g. 100vh sidebars, grow with it)`,
         {
           detail: {
             viewportHeight: snapshot.viewport.height,
             capturedHeight: snapshot.viewport.height + Math.round(c.expanded),
+            ...(c.grown ? { grown: c.grown } : {}),
           },
         },
       ),

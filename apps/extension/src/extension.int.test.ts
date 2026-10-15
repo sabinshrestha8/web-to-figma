@@ -130,6 +130,73 @@ describe("browser extension", () => {
     await page.close();
   });
 
+  it("grows a scrolled, clipping panel inside the scrolling <main>", async () => {
+    const page = await context.newPage();
+    await page.goto(`${fixture}/app-shell-panel`);
+    await page.evaluate(() => {
+      (document.getElementById("panel") as HTMLElement).scrollTop = 300;
+    });
+    const { bundle, text } = await capture(page);
+    expect(text).toContain("End of panel");
+    expect(text).toContain("Footer");
+    // Header 56 + summary 160 + 20 rows (112 each), padding, closing line and footer ≈ 2.6k px.
+    const c = bundle.ir.captures[0];
+    const h = c?.root.bounds.height ?? 0;
+    expect(h).toBeGreaterThan(2500);
+    expect(h).toBeLessThan(2900);
+    // Captured from the top of the panel, not where it was scrolled to, and left as it was.
+    const walk = (n: Node): Node[] => [n, ...(n.type === "box" ? n.children.flatMap(walk) : [])];
+    const first = c && walk(c.root).find((n) => n.type === "text" && n.characters === "Panel row 1");
+    expect(first?.bounds.y).toBeLessThan(280);
+    expect(await page.evaluate(() => document.getElementById("panel")?.scrollTop)).toBe(300);
+    // The backdrop always hides 200px more than its height: tried once, then left alone.
+    const grown = String(
+      bundle.ir.diagnostics.find((d) => d.code === "SCROLL_CONTAINER_EXPANDED")?.detail?.grown,
+    );
+    expect(grown).toContain("left as is");
+    expect(grown).toMatch(/div#panel\S* \+\d+px/);
+    await page.close();
+  });
+
+  it.each([1])(
+    "grows a SimpleBar panel, whose script sets its own heights, to the end (zoom %s)",
+    async (zoom) => {
+      const page = await context.newPage();
+      await page.goto(`${fixture}/app-shell-simplebar`);
+      // Like the dashboard it was reported on, which zooms its whole page out.
+      if (zoom !== 1) await page.addStyleTag({ content: `body { zoom: ${zoom} }` });
+      await page.locator(".simplebar-content-wrapper").waitFor();
+      const { bundle, text } = await capture(page);
+      const c = bundle.ir.captures[0];
+      const walk = (n: Node): Node[] => [n, ...(n.type === "box" ? n.children.flatMap(walk) : [])];
+      const end = c && walk(c.root).find((n) => n.type === "text" && n.characters === "End of dashboard");
+      expect(text).toContain("Card 15");
+      // Its 40×20 user space still fills its on-screen box.
+      const bar = c && walk(c.root).find((n) => n.type === "vector");
+      expect(bar?.type === "vector" && bar.svg).toMatch(
+        zoom === 1 ? /^(?!.*viewBox)/ : /viewBox="0 0 (39\.9\d|40) (19\.9\d|20)"/,
+      );
+      // Header 56 + padding 16 + summary 224 + 5 rows of 400 (gap 16) + closing line ≈ 2.4k px.
+      expect(end?.bounds.y).toBeGreaterThan(2300 * zoom);
+      // Nothing around it cuts the end off, and no blank page below it.
+      const root = c?.root.bounds.height ?? 0;
+      expect(root).toBeGreaterThanOrEqual((end?.bounds.y ?? 0) + (end?.bounds.height ?? 0));
+      expect(root).toBeLessThan((end?.bounds.y ?? 0) + 100);
+      // Every clipping box around it reaches its bottom.
+      const around = (n: Node, path: Node[]): Node[] | undefined =>
+        n === end
+          ? path
+          : n.type === "box"
+            ? n.children.map((k) => around(k, [...path, n])).find(Boolean)
+            : undefined;
+      const bottom = (end?.bounds.y ?? 0) + (end?.bounds.height ?? 0);
+      for (const n of (c && around(c.root, [])) ?? [])
+        if (n.type === "box" && n.clip)
+          expect(n.bounds.y + n.bounds.height, n.name).toBeGreaterThanOrEqual(bottom);
+      await page.close();
+    },
+  );
+
   it("leaves the page alone while a dialog is open", async () => {
     const page = await context.newPage();
     await page.goto(`${fixture}/dialog`);

@@ -14,7 +14,7 @@ function showDiagnostics(diagnostics: Diagnostic[]) {
   for (const d of [...diagnostics].sort((a, b) => rank[a.severity] - rank[b.severity])) {
     const li = document.createElement("li");
     li.className = d.severity;
-    li.textContent = `${d.code}: ${d.message}`;
+    li.textContent = `${d.code}: ${d.message}${d.detail?.grown ? ` (grown: ${d.detail.grown})` : ""}`;
     list.append(li);
   }
 }
