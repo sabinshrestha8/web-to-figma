@@ -82,4 +82,41 @@ describe("browser extension", () => {
     expect(unused).toEqual([]);
     await page.close();
   });
+
+  it("grows an app shell's inner scroller so the whole page is captured, then restores it", async () => {
+    const page = await context.newPage();
+    await page.goto(`${fixture}/app-shell`);
+    const before = await page.evaluate(() => document.querySelector("main")?.outerHTML);
+    const inlineStyles = () =>
+      Array.from(document.querySelectorAll("[style]"))
+        .map((el) => `${el.tagName} ${el.getAttribute("style")}`)
+        .filter((s) => !s.endsWith(" "));
+    const stylesBefore = await page.evaluate(inlineStyles);
+
+    const { bundle, text } = await capture(page);
+    const c = bundle.ir.captures[0];
+    expect(text).toContain("End of report");
+    // 800px window + what <main> hid (24 rows of 112px and the closing line): all of it, once.
+    expect(c?.root.bounds.height).toBeGreaterThan(2700);
+    expect(c?.root.bounds.height).toBeLessThan(3000);
+    expect(bundle.ir.diagnostics.map((d) => d.code)).toContain("SCROLL_CONTAINER_EXPANDED");
+    // The user's tab is back the way it was.
+    // (Chrome may leave an empty style="" where none was: no styles, so nothing changes on screen.)
+    const after = await page.evaluate(() => document.querySelector("main")?.outerHTML);
+    expect(after?.replace(' style=""', "")).toBe(before);
+    expect(await page.evaluate(inlineStyles)).toEqual(stylesBefore);
+    expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBe(800);
+    await page.close();
+  });
+
+  it("leaves the page alone while a dialog is open", async () => {
+    const page = await context.newPage();
+    await page.goto(`${fixture}/dialog`);
+    await page.click("text=Add employee");
+    await page.getByRole("dialog").waitFor();
+    const { bundle } = await capture(page);
+    expect(bundle.ir.diagnostics.map((d) => d.code)).not.toContain("SCROLL_CONTAINER_EXPANDED");
+    expect(bundle.ir.captures[0]?.root.bounds.height).toBe(800);
+    await page.close();
+  });
 });

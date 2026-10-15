@@ -25,6 +25,8 @@ export interface Captured {
   snapshot: RawSnapshot;
   /** window.scrollX/Y at capture time: snapshot rects are page coordinates, the screenshot is the viewport. */
   scroll: { x: number; y: number };
+  /** Px the page's inner scroller was grown by so all of it shows (`unrollInPlace`). */
+  expanded?: number;
 }
 
 /** The browser-only parts, injected so the assembly is testable in Node. */
@@ -68,6 +70,20 @@ const pngSize = (b: Uint8Array) => {
 export async function toBundle(c: Captured, deps: Deps): Promise<Result<Bundle>> {
   const { snapshot, scroll } = c;
   const diagnostics: Diagnostic[] = [];
+  if (c.expanded) {
+    diagnostics.push(
+      diag(
+        "SCROLL_CONTAINER_EXPANDED",
+        `the page scrolls inside an element, not the document; it was grown by ${Math.round(c.expanded)}px so all of it shows (elements sized to the window, e.g. 100vh sidebars, keep the window's height)`,
+        {
+          detail: {
+            viewportHeight: snapshot.viewport.height,
+            capturedHeight: snapshot.viewport.height + Math.round(c.expanded),
+          },
+        },
+      ),
+    );
+  }
   const assets: Record<string, AssetMeta> = {};
   const assetData: Record<string, string> = {};
   if (snapshot.truncated) {

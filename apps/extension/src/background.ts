@@ -10,10 +10,33 @@ declare const __w2f: typeof Collector;
 // Held until result.html takes it (a moment later); never written to storage.
 const pending = new Map<string, Handoff>();
 
-/** Runs in the tab's isolated world, after collector.js defined `__w2f` there. */
-function collectInTab(maxNodes: number): Captured {
-  const { snapshot } = __w2f.collect({ maxNodes, dpr: window.devicePixelRatio });
-  return { snapshot, scroll: { x: window.scrollX, y: window.scrollY } };
+// These run in the tab's isolated world, after collector.js defined `__w2f` there.
+
+/**
+ * App shells scroll inside an element, so grow it until all of it shows. Not while a dialog or menu
+ * is open: then the screen as it is is the point, and the backdrop covers the rest anyway.
+ */
+async function unrollInTab(maxHeight: number): Promise<number> {
+  const overlays = document.querySelectorAll(
+    '[role="dialog"],[aria-modal="true"],dialog[open],[role="menu"],[role="listbox"]',
+  );
+  if (Array.from(overlays).some((el) => el.getClientRects().length > 0)) return 0;
+  const added = __w2f.unrollInPlace(maxHeight);
+  if (added > 0) await __w2f.nextFrames();
+  return added;
+}
+
+function collectInTab(maxNodes: number, expanded: number): Captured {
+  try {
+    const { snapshot } = __w2f.collect({ maxNodes, dpr: window.devicePixelRatio });
+    return { snapshot, scroll: { x: window.scrollX, y: window.scrollY }, ...(expanded ? { expanded } : {}) };
+  } finally {
+    __w2f.restoreUnroll();
+  }
+}
+
+function restoreInTab(): boolean {
+  return typeof __w2f === "undefined" || __w2f.restoreUnroll();
 }
 
 /** Capture the tab as it is on screen (open dialogs and menus included) and open the result page. */
@@ -21,17 +44,28 @@ async function captureTab(tab: chrome.tabs.Tab): Promise<void> {
   if (tab.id === undefined) return;
   let handoff: Handoff;
   try {
-    // Screenshot first: nothing of ours has touched the page yet.
-    const screenshot = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
     const target = { tabId: tab.id };
     await chrome.scripting.executeScript({ target, files: ["collector.js"] });
-    const [run] = await chrome.scripting.executeScript({
-      target,
-      func: collectInTab,
-      args: [LIMITS.maxElements],
-    });
-    if (!run?.result) throw new Error("the page returned nothing");
-    handoff = { ...run.result, screenshot };
+    try {
+      const [unroll] = await chrome.scripting.executeScript({
+        target,
+        func: unrollInTab,
+        args: [LIMITS.maxCaptureHeight],
+      });
+      const expanded = unroll?.result ?? 0;
+      // After unrolling, so the screenshot matches the layout that is collected.
+      const screenshot = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
+      const [run] = await chrome.scripting.executeScript({
+        target,
+        func: collectInTab,
+        args: [LIMITS.maxElements, expanded],
+      });
+      if (!run?.result) throw new Error("the page returned nothing");
+      handoff = { ...run.result, screenshot };
+    } finally {
+      // collectInTab restores already; this covers a failure before it ran.
+      await chrome.scripting.executeScript({ target, func: restoreInTab });
+    }
   } catch (e) {
     // Chrome pages, the Web Store and PDFs refuse scripts; report it on the result page.
     const why = e instanceof Error ? e.message : String(e);
