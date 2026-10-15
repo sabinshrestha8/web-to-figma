@@ -261,14 +261,8 @@ export function nextFrames(): Promise<boolean> {
   return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))));
 }
 
-/**
- * App-shell layouts (`html, body { height: 100% }` + a scrolling `<main>`) never scroll the document,
- * so a full-page capture would stop at the fold. Returns how many px the main inner scroller hides,
- * or 0 when the document scrolls itself or no scroller covers at least half the viewport each way.
- */
-export function hiddenScrollHeight(): number {
-  const doc = document.scrollingElement ?? document.documentElement;
-  if (doc.scrollHeight > window.innerHeight + 1) return 0;
+/** The element scrolling most of the window (at least half of it each way), or null. */
+function mainScroller(): Element | null {
   let best: Element | null = null;
   let bestArea = 0;
   for (const el of Array.from(document.querySelectorAll("*"))) {
@@ -278,7 +272,68 @@ export function hiddenScrollHeight(): number {
     const area = el.clientWidth * el.clientHeight;
     if (area > bestArea) [best, bestArea] = [el, area];
   }
+  return best;
+}
+
+/**
+ * App-shell layouts (`html, body { height: 100% }` + a scrolling `<main>`) never scroll the document,
+ * so a full-page capture would stop at the fold. Returns how many px the main inner scroller hides,
+ * or 0 when the document scrolls itself or no scroller covers at least half the viewport each way.
+ */
+export function hiddenScrollHeight(): number {
+  const doc = document.scrollingElement ?? document.documentElement;
+  if (doc.scrollHeight > window.innerHeight + 1) return 0;
+  const best = mainScroller();
   return best ? best.scrollHeight - best.clientHeight : 0;
+}
+
+const unrolled = new Map<HTMLElement, string | null>();
+
+/**
+ * The extension's `hiddenScrollHeight` fix: it can't make the window taller, so it grows the main
+ * inner scroller and every ancestor by what the scroller hides (up to `maxHeight` in all), until
+ * `restoreUnroll`. Elements sized to the window (100vh sidebars) keep the window's height.
+ * Returns the px added.
+ */
+export function unrollInPlace(maxHeight: number): number {
+  if (hiddenScrollHeight() <= 1) return 0;
+  const scroller = mainScroller();
+  if (!(scroller instanceof HTMLElement)) return 0;
+  let added = 0;
+  for (let round = 0; round < 3; round++) {
+    const extra = Math.min(
+      scroller.scrollHeight - scroller.clientHeight,
+      maxHeight - window.innerHeight - added,
+    );
+    if (extra <= 1) break;
+    // Measure the whole chain first: a grown child would already stretch an auto-height parent.
+    const chain: { el: HTMLElement; height: number }[] = [];
+    for (let el: HTMLElement | null = scroller; el; el = el.parentElement)
+      chain.push({
+        el,
+        // html/body can be 0 tall under a position:fixed shell; the document must still reach its end.
+        height: Math.max(
+          el.getBoundingClientRect().height,
+          el === document.documentElement || el === document.body ? window.innerHeight : 0,
+        ),
+      });
+    for (const { el, height } of chain) {
+      if (!unrolled.has(el)) unrolled.set(el, el.getAttribute("style"));
+      el.style.setProperty("height", `${height + extra}px`, "important");
+      el.style.setProperty("max-height", "none", "important");
+    }
+    added += extra;
+  }
+  return added;
+}
+
+export function restoreUnroll(): boolean {
+  for (const [el, style] of unrolled) {
+    if (style === null) el.removeAttribute("style");
+    else el.setAttribute("style", style);
+  }
+  unrolled.clear();
+  return true;
 }
 
 /** Scroll the page in viewport steps so lazy content loads, then return to the top. */
