@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { type Bundle, parseBundle } from "@w2f/ir";
+import { type Bundle, type Node, parseBundle } from "@w2f/ir";
 import { type BrowserContext, chromium, type Page, type Worker } from "playwright";
 import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 
@@ -100,6 +100,10 @@ describe("browser extension", () => {
     expect(c?.root.bounds.height).toBeGreaterThan(2700);
     expect(c?.root.bounds.height).toBeLessThan(3000);
     expect(bundle.ir.diagnostics.map((d) => d.code)).toContain("SCROLL_CONTAINER_EXPANDED");
+    // The window-tall fixed sidebar grows with the page, as in a taller window.
+    const walk = (n: Node): Node[] => [n, ...(n.type === "box" ? n.children.flatMap(walk) : [])];
+    const nav = c && walk(c.root).find((n) => n.source.tag === "nav");
+    expect(nav?.bounds.height).toBe(c?.root.bounds.height);
     // The user's tab is back the way it was.
     // (Chrome may leave an empty style="" where none was: no styles, so nothing changes on screen.)
     const after = await page.evaluate(() => document.querySelector("main")?.outerHTML);

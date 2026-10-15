@@ -269,6 +269,9 @@ describe("app-shell pages that scroll inside an element", () => {
     const end = texts(cap.root).find((t) => t.characters === "End of report");
     expect(end?.bounds.y).toBeGreaterThan(desktop.height);
     expect(cap.root.bounds.height).toBeGreaterThanOrEqual(end!.bounds.y + end!.bounds.height);
+    // The window-tall fixed sidebar is drawn as tall as the page.
+    const nav = walk(cap.root).find((n) => n.source.tag === "nav");
+    expect(nav?.bounds.height).toBe(cap.root.bounds.height);
     expect(cap.viewport.height).toBe(desktop.height);
     expect(ir.diagnostics.map((d) => d.code)).toContain("SCROLL_CONTAINER_EXPANDED");
     expect(ir.diagnostics.map((d) => d.code)).not.toContain("ASSET_REJECTED");

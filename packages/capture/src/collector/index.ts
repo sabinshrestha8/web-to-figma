@@ -292,13 +292,21 @@ const unrolled = new Map<HTMLElement, string | null>();
 /**
  * The extension's `hiddenScrollHeight` fix: it can't make the window taller, so it grows the main
  * inner scroller and every ancestor by what the scroller hides (up to `maxHeight` in all), until
- * `restoreUnroll`. Elements sized to the window (100vh sidebars) keep the window's height.
- * Returns the px added.
+ * `restoreUnroll`. Elements as tall as the window (100vh or `inset-y-0` sidebars) grow by the same
+ * amount, as they would in a taller window. Returns the px added.
  */
 export function unrollInPlace(maxHeight: number): number {
   if (hiddenScrollHeight() <= 1) return 0;
   const scroller = mainScroller();
   if (!(scroller instanceof HTMLElement)) return 0;
+  // ponytail: "as tall as the window" stands in for 100vh, which computed styles don't reveal.
+  // Not inside the scroller: growing its content would change what it hides.
+  const windowTall = Array.from(document.querySelectorAll<HTMLElement>("body *")).filter(
+    (el) =>
+      !el.contains(scroller) &&
+      !scroller.contains(el) &&
+      Math.abs(el.getBoundingClientRect().height - window.innerHeight) <= 1,
+  );
   let added = 0;
   for (let round = 0; round < 3; round++) {
     const extra = Math.min(
@@ -317,14 +325,19 @@ export function unrollInPlace(maxHeight: number): number {
           el === document.documentElement || el === document.body ? window.innerHeight : 0,
         ),
       });
-    for (const { el, height } of chain) {
-      if (!unrolled.has(el)) unrolled.set(el, el.getAttribute("style"));
-      el.style.setProperty("height", `${height + extra}px`, "important");
-      el.style.setProperty("max-height", "none", "important");
-    }
+    for (const { el, height } of chain) grow(el, height + extra);
     added += extra;
   }
+  for (const el of windowTall)
+    if (el.getBoundingClientRect().height < window.innerHeight + added - 1)
+      grow(el, window.innerHeight + added);
   return added;
+}
+
+function grow(el: HTMLElement, height: number): void {
+  if (!unrolled.has(el)) unrolled.set(el, el.getAttribute("style"));
+  el.style.setProperty("height", `${height}px`, "important");
+  el.style.setProperty("max-height", "none", "important");
 }
 
 export function restoreUnroll(): boolean {
