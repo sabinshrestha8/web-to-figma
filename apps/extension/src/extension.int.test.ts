@@ -158,7 +158,7 @@ describe("browser extension", () => {
     await page.close();
   });
 
-  it.each([1])(
+  it.each([1, 0.889])(
     "grows a SimpleBar panel, whose script sets its own heights, to the end (zoom %s)",
     async (zoom) => {
       const page = await context.newPage();

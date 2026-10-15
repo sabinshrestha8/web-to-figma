@@ -239,6 +239,13 @@ export function serializeSvg(
   clone.setAttribute("xmlns", NS);
   clone.setAttribute("width", String(Math.round(size.width * 100) / 100));
   clone.setAttribute("height", String(Math.round(size.height * 100) / 100));
+  // Under CSS zoom its user space is CSS px, not the on-screen size above: keep it drawn as shown.
+  const z = svg.currentCSSZoom ?? 1;
+  if (!clone.getAttribute("viewBox") && z !== 1)
+    clone.setAttribute(
+      "viewBox",
+      `0 0 ${Math.round((size.width / z) * 100) / 100} ${Math.round((size.height / z) * 100) / 100}`,
+    );
   const vb = clone.viewBox.baseVal;
   inlineUses(clone, vb && vb.width > 0 ? vb : size);
   strip(clone, normalizeColor);

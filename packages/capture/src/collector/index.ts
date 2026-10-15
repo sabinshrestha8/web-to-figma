@@ -299,7 +299,10 @@ let unroll: {
   log: string[];
 } | null = null;
 
-const hides = (el: Element) => el.scrollHeight - el.clientHeight;
+/** CSS `zoom` in effect: rects are on-screen px, everything else (client/scroll sizes, styles) is CSS px. */
+const zoom = (el: Element) => el.currentCSSZoom ?? 1;
+/** On-screen px cut off at its bottom. */
+const hides = (el: Element) => (el.scrollHeight - el.clientHeight) * zoom(el);
 
 /**
  * Elements cutting content off at their bottom that are part of the page's frame: at least half the
@@ -313,8 +316,8 @@ function clippers(skip: Set<HTMLElement>): HTMLElement[] {
       !skip.has(el) &&
       // Closed drawers and hidden overlays still have a size.
       el.checkVisibility({ visibilityProperty: true, opacityProperty: true }) &&
-      el.clientWidth >= window.innerWidth / 2 &&
-      el.clientHeight >= window.innerHeight / 2 &&
+      el.clientWidth * zoom(el) >= window.innerWidth / 2 &&
+      el.clientHeight * zoom(el) >= window.innerHeight / 2 &&
       /^(auto|scroll|overlay|hidden|clip)$/.test(getComputedStyle(el).overflowY),
   );
   return found.filter((el) => !found.some((d) => d !== el && el.contains(d)));
@@ -334,7 +337,7 @@ export function unrollInPlace(maxHeight: number): number {
     if (hiddenScrollHeight() <= 1) return 0;
     // ponytail: "as tall as the window" stands in for 100vh, which computed styles don't reveal.
     const windowTall = Array.from(document.querySelectorAll<HTMLElement>("body *")).filter(
-      (el) => Math.abs(el.getBoundingClientRect().height - window.innerHeight) <= 1,
+      (el) => Math.abs(el.getBoundingClientRect().height / zoom(el) - window.innerHeight) <= 1,
     );
     unroll = { targets: new Set(), stuck: new Set(), windowTall, added: 0, log: [] };
   }
@@ -384,7 +387,7 @@ export function unrollInPlace(maxHeight: number): number {
   const full = window.innerHeight + unroll.added;
   for (const el of unroll.windowTall) {
     if ([...targets].some((t) => t.contains(el) || el.contains(t))) continue;
-    if (el.getBoundingClientRect().height < full - 1) grow(el, full);
+    if (el.getBoundingClientRect().height / zoom(el) < full - 1) grow(el, full * zoom(el));
   }
   return unroll.added;
 }
@@ -416,7 +419,7 @@ function contain(targets: Set<HTMLElement>): number {
     let child: HTMLElement = t;
     for (let el = t.parentElement; el && el !== document.body && el !== root; el = el.parentElement) {
       const r = el.getBoundingClientRect();
-      const need = child.getBoundingClientRect().bottom - r.top + below(getComputedStyle(el));
+      const need = child.getBoundingClientRect().bottom - r.top + below(getComputedStyle(el)) * zoom(el);
       if (r.height < need - 0.5) grow(el, need);
       child = el;
     }
@@ -426,12 +429,12 @@ function contain(targets: Set<HTMLElement>): number {
   return end - window.innerHeight;
 }
 
-/** Sets `el`'s border-box height (whatever its box-sizing) until `restoreUnroll`. */
+/** Sets `el`'s on-screen border-box height (whatever its box-sizing and zoom) until `restoreUnroll`. */
 function grow(el: HTMLElement, height: number): void {
   if (!unrolled.has(el)) unrolled.set(el, el.getAttribute("style"));
   const cs = getComputedStyle(el);
   const extra = cs.boxSizing === "content-box" ? below(cs) + px(cs.paddingTop) + px(cs.borderTopWidth) : 0;
-  el.style.setProperty("height", `${Math.max(0, height - extra)}px`, "important");
+  el.style.setProperty("height", `${Math.max(0, height / zoom(el) - extra)}px`, "important");
   el.style.setProperty("max-height", "none", "important");
 }
 
