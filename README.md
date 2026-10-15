@@ -101,7 +101,7 @@ Then click **Build** if the plugin asks about fonts.
 
 **Good to know:**
 - The frame is as wide and tall as your browser window. For a mobile frame, open DevTools' responsive/device mode first.
-- Pages that scroll inside a panel are captured in full. With a dialog open, you get just the screen.
+- The page is scrolled through once (and back), so sections that fade in on scroll are captured. Pages that scroll inside a panel are captured in full. With a dialog open, you get just the screen.
 - Canvas, video and iframes are copied from screenshots, taken further down the page for those below the window. One larger than the window becomes a placeholder.
 - Browser pages can't be captured: error pages ("Problem loading page"), `about:`/`chrome://` pages, add-on stores and PDFs.
 

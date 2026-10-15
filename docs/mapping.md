@@ -21,7 +21,7 @@ This document is the contract for `packages/capture/collector`, `packages/conver
 - Subtrees with `display:none`, `visibility:hidden` or `opacity:0`.
 - Zero-area elements with no overflow-visible children.
 - `script`, `style`, `head`.
-- Painted `::before/::after` content has no DOM node to measure, so only its existence is recorded (`PSEUDO_ELEMENT_SKIPPED`); geometry would need CDP. Clearfixes and hidden pseudos stay quiet.
+- Painted `::before/::after` content has no DOM node to measure, so only its existence is recorded (`PSEUDO_ELEMENT_SKIPPED`); geometry would need CDP. Clearfixes and hidden pseudos stay quiet. An element with no content of its own besides its pseudo-elements (an icon font's `<i class="fa-…">`) is drawn as a raster island instead, glyph included (`RASTERIZED`).
 
 **Colors.** Every color passes through a 1×1 canvas in the page (`fillStyle` → `fillRect` → `getImageData`). This turns `oklch()`, `lab()` and `color()` (Tailwind v4 emits oklch) into sRGB with no color library.
 
