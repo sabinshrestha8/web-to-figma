@@ -289,14 +289,30 @@ export function hiddenScrollHeight(): number {
 
 const unrolled = new Map<HTMLElement, string | null>();
 /** The unroll in progress, so a later call can grow it further (content rendered on coming into view). */
-let unroll: { scroller: HTMLElement; windowTall: HTMLElement[]; added: number } | null = null;
+let unroll: { scrollers: HTMLElement[]; windowTall: HTMLElement[]; added: number } | null = null;
+
+const hides = (el: Element) => el.scrollHeight - el.clientHeight;
+
+/** The scroller inside `el` (at least half its width) hiding the most, or null. */
+function innerScroller(el: HTMLElement): HTMLElement | null {
+  let best: HTMLElement | null = null;
+  for (const d of Array.from(el.querySelectorAll<HTMLElement>("*"))) {
+    if (hides(d) <= 1 || d.clientWidth < el.clientWidth / 2) continue;
+    if (!/^(auto|scroll|overlay)$/.test(getComputedStyle(d).overflowY)) continue;
+    if (!best || hides(d) > hides(best)) best = d;
+  }
+  return best;
+}
 
 /**
  * The extension's `hiddenScrollHeight` fix: it can't make the window taller, so it grows the main
  * inner scroller and every ancestor by what the scroller hides (up to `maxHeight` in all), until
  * `restoreUnroll`. Elements as tall as the window (100vh or `inset-y-0` sidebars) grow by the same
- * amount, as they would in a taller window. Call again after the page reacts (lazy widgets that
- * render once in view) to grow by what it hides now. Returns the px added in all.
+ * amount, as they would in a taller window. A scroller that still hides as much after growing holds
+ * a full-height scroller of its own (summary + `h-full` panel): that one is grown next, then the outer
+ * one again (the inner one now has a fixed height, so it converges). Call again
+ * after the page reacts (lazy widgets that render once in view) to grow by what it hides now.
+ * Returns the px added in all.
  */
 export function unrollInPlace(maxHeight: number): number {
   if (!unroll) {
@@ -304,25 +320,26 @@ export function unrollInPlace(maxHeight: number): number {
     const scroller = mainScroller();
     if (!(scroller instanceof HTMLElement)) return 0;
     // ponytail: "as tall as the window" stands in for 100vh, which computed styles don't reveal.
-    // Not inside the scroller: growing its content would change what it hides.
+    // Not around or inside the scroller: growing its content would change what it hides.
     const windowTall = Array.from(document.querySelectorAll<HTMLElement>("body *")).filter(
       (el) =>
         !el.contains(scroller) &&
         !scroller.contains(el) &&
         Math.abs(el.getBoundingClientRect().height - window.innerHeight) <= 1,
     );
-    unroll = { scroller, windowTall, added: 0 };
+    unroll = { scrollers: [scroller], windowTall, added: 0 };
   }
-  const { scroller, windowTall } = unroll;
-  for (let round = 0; round < 3; round++) {
-    const extra = Math.min(
-      scroller.scrollHeight - scroller.clientHeight,
-      maxHeight - window.innerHeight - unroll.added,
-    );
+  const { scrollers } = unroll;
+  for (let round = 0; round < 8; round++) {
+    // The innermost scroller still hiding something; outer ones get their turn once it shows all.
+    while (scrollers.length > 1 && hides(scrollers.at(-1) as HTMLElement) <= 1) scrollers.pop();
+    const target = scrollers.at(-1) as HTMLElement;
+    const hidden = hides(target);
+    const extra = Math.min(hidden, maxHeight - window.innerHeight - unroll.added);
     if (extra <= 1) break;
     // Measure the whole chain first: a grown child would already stretch an auto-height parent.
     const chain: { el: HTMLElement; height: number }[] = [];
-    for (let el: HTMLElement | null = scroller; el; el = el.parentElement)
+    for (let el: HTMLElement | null = target; el; el = el.parentElement)
       chain.push({
         el,
         // html/body can be 0 tall under a position:fixed shell; the document must still reach its end.
@@ -333,9 +350,14 @@ export function unrollInPlace(maxHeight: number): number {
       });
     for (const { el, height } of chain) grow(el, height + extra);
     unroll.added += extra;
+    if (hides(target) >= hidden - 1) {
+      const inner = innerScroller(target);
+      if (!inner) break;
+      scrollers.push(inner);
+    }
   }
   const full = window.innerHeight + unroll.added;
-  for (const el of windowTall) if (el.getBoundingClientRect().height < full - 1) grow(el, full);
+  for (const el of unroll.windowTall) if (el.getBoundingClientRect().height < full - 1) grow(el, full);
   return unroll.added;
 }
 

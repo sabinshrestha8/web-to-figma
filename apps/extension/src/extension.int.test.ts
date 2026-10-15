@@ -116,6 +116,20 @@ describe("browser extension", () => {
     await page.close();
   });
 
+  it("grows a full-height scroller nested in the main one, without growing forever", async () => {
+    const page = await context.newPage();
+    await page.goto(`${fixture}/app-shell-nested`);
+    const { bundle, text } = await capture(page);
+    expect(text).toContain("End of cards");
+    // Header 56 + summary 288 + the panel's 20 rows (112 each), padding and closing line ≈ 2.7k px;
+    // growing <main> alone would repeat its 288 px on every round.
+    const h = bundle.ir.captures[0]?.root.bounds.height ?? 0;
+    expect(h).toBeGreaterThan(2600);
+    expect(h).toBeLessThan(3200);
+    expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBe(800);
+    await page.close();
+  });
+
   it("leaves the page alone while a dialog is open", async () => {
     const page = await context.newPage();
     await page.goto(`${fixture}/dialog`);

@@ -10,6 +10,7 @@ const ROUTES = [
   "/hostile/blocked-subresource",
   "/auth",
   "/app-shell",
+  "/app-shell-nested",
   "/article",
   "/image-heavy",
   "/svg-icons",
