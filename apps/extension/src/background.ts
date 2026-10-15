@@ -34,7 +34,10 @@ async function captureTab(tab: chrome.tabs.Tab): Promise<void> {
     handoff = { ...run.result, screenshot };
   } catch (e) {
     // Chrome pages, the Web Store and PDFs refuse scripts; report it on the result page.
-    handoff = { error: e instanceof Error ? e.message : String(e) };
+    const why = e instanceof Error ? e.message : String(e);
+    handoff = {
+      error: `"${tab.title || tab.url || "this tab"}" can't be read by extensions (${why}). Browsers block their own pages: error pages ("Problem loading page"), about:/chrome:// pages, add-on stores and PDFs. Load the page you want, wait until it shows, then capture again.`,
+    };
   }
   const id = crypto.randomUUID();
   pending.set(id, handoff);

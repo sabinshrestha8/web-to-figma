@@ -76,7 +76,7 @@ async function main() {
     return;
   }
   if ("error" in handoff) {
-    status.textContent = `This tab can't be captured: ${handoff.error}`;
+    status.textContent = handoff.error;
     return;
   }
   const { snapshot } = handoff;
