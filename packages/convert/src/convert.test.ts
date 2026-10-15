@@ -487,6 +487,24 @@ describe("snapshotToIR box fidelity", () => {
     );
   });
 
+  it("keeps only the on-page part of an island past the page edge, and drops one wholly off it", () => {
+    // A reCAPTCHA badge: fixed at the right, 70px showing; another parked fully off-screen.
+    const snap = page((body) => [
+      el(body.id, "iframe", { x: 1370, y: 800, width: 256, height: 60 }),
+      el(body.id, "iframe", { x: 1500, y: 700, width: 256, height: 60 }),
+    ]);
+    const plan = rasterPlan(snap, 16_000, () => false);
+    expect(plan).toEqual([expect.objectContaining({ rect: { x: 1370, y: 800, width: 70, height: 60 } })]);
+    const asset = "a".repeat(64);
+    const { capture } = snapshotToIR(snap, {
+      captureId: "c1",
+      maxHeight: 16_000,
+      rasters: { "el:2": asset },
+    });
+    const frames = all(capture.root).filter((n) => n.source.tag === "iframe");
+    expect(frames.map((n) => n.bounds)).toEqual([{ x: 1370, y: 800, width: 70, height: 60 }]);
+  });
+
   it("turns replaced elements into raster islands, or grey placeholders when no pixels came back", () => {
     const snap = page((body) => [
       el(

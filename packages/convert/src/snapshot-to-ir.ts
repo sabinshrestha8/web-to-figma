@@ -11,7 +11,7 @@ import {
 import { parseColor, round2 } from "./css.ts";
 import type { ImageAsset } from "./images.ts";
 import { inferLayout, type LayoutItem } from "./layout.ts";
-import { islandReason } from "./rasters.ts";
+import { islandOnPage, islandReason } from "./rasters.ts";
 import { createReport } from "./report.ts";
 import { bakeScale } from "./scale.ts";
 import type { RawElement, RawSnapshot, RawText } from "./snapshot.ts";
@@ -263,6 +263,11 @@ export function snapshotToIR(raw: RawSnapshot, opts: ConvertOptions): ConvertRes
     const rawKids = children.get(n.id) ?? [];
     const island =
       n.rect.width >= 1 && n.rect.height >= 1 ? islandReason(n, rawKids.length === 0, hasImage) : null;
+    if (island) {
+      const shown = islandOnPage(n, snap.documentSize);
+      if (!shown) return null;
+      n = shown;
+    }
     if (!island && visible && rawKids.length > 0) {
       for (const p of ["clip-path", "mask-image", "border-image-source"] as const) {
         if (n.style[p] !== "none" && n.style[p] !== "") {

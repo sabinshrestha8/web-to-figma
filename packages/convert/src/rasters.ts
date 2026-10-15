@@ -14,6 +14,23 @@ export type RasterRequest =
 export const paintSize = (el: RawElement) =>
   el.layoutSize ?? { width: el.rect.width, height: el.rect.height };
 
+/**
+ * The part of a raster island on the page, or null when none is: the browser shows nothing past the
+ * edge (a reCAPTCHA badge parked off-screen at the right), so neither does the frame. Rotated islands
+ * are left whole.
+ */
+export function islandOnPage(el: RawElement, page: { width: number; height: number }): RawElement | null {
+  if (el.layoutSize) return el;
+  const { x, y, width, height } = el.rect;
+  const x0 = Math.max(0, x);
+  const y0 = Math.max(0, y);
+  const x1 = Math.min(page.width, x + width);
+  const y1 = Math.min(page.height, y + height);
+  if (x1 - x0 < 1 || y1 - y0 < 1) return null;
+  if (x0 === x && y0 === y && x1 === x + width && y1 === y + height) return el;
+  return { ...el, rect: { x: x0, y: y0, width: x1 - x0, height: y1 - y0 } };
+}
+
 const REPLACED = new Set(["img", "svg", "canvas", "video", "iframe", "embed", "object"]);
 const PIXEL_ONLY = ["clip-path", "mask-image", "border-image-source"] as const;
 
@@ -69,7 +86,8 @@ export function rasterPlan(
     if (n.rect.y >= maxHeight || n.rect.width < 1 || n.rect.height < 1) continue;
     if (islandReason(n, !parents.has(n.id), hasImage)) {
       skipped.add(n.id); // an island's descendants are inside its pixels
-      out.push({ key: `el:${n.id}`, kind: "element", id: n.id, rect: n.rect });
+      const shown = islandOnPage(n, snap.documentSize);
+      if (shown) out.push({ key: `el:${n.id}`, kind: "element", id: n.id, rect: shown.rect });
       continue;
     }
     if (n.style.visibility !== "visible") continue;
