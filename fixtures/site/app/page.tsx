@@ -11,6 +11,8 @@ const ROUTES = [
   "/auth",
   "/app-shell",
   "/app-shell-nested",
+  "/app-shell-panel",
+  "/app-shell-simplebar",
   "/article",
   "/image-heavy",
   "/svg-icons",
