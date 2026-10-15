@@ -23,6 +23,7 @@
     "plugin:build": "pnpm --filter @w2f/figma-plugin build",
     "plugin:release": "pnpm --filter @w2f/figma-plugin release",
     "extension:build": "pnpm --filter @w2f/extension build",
+    "share": "tsx scripts/share.ts",
     "web": "pnpm --filter @w2f/web dev",
     "server": "pnpm --filter @w2f/server start"
   },

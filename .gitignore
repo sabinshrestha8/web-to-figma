@@ -9,3 +9,4 @@ next-env.d.ts
 drift.md
 diff.png
 *.w2f.json
+share/
