@@ -22,6 +22,7 @@ This document is the contract for `packages/capture/collector`, `packages/conver
 - Zero-area elements with no overflow-visible children.
 - `script`, `style`, `head`.
 - Painted `::before/::after` content has no DOM node to measure, so only its existence is recorded (`PSEUDO_ELEMENT_SKIPPED`); geometry would need CDP. Clearfixes and hidden pseudos stay quiet. An element with no content of its own besides its pseudo-elements (an icon font's `<i class="fa-…">`) is drawn as a raster island instead, glyph included (`RASTERIZED`).
+- A raster island past the page's edge keeps only its on-page part, as the browser shows it; one wholly off the page (a reCAPTCHA badge parked off-screen) is left out.
 
 **Colors.** Every color passes through a 1×1 canvas in the page (`fillStyle` → `fillRect` → `getImageData`). This turns `oklch()`, `lab()` and `color()` (Tailwind v4 emits oklch) into sRGB with no color library.
 
