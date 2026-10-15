@@ -40,6 +40,7 @@ Build a thin end-to-end slice early, then widen fidelity one area at a time.
 | 9 | V1 release | Production config, user and dev docs, plugin publish prep, release checklist | Fresh-machine install from the docs succeeds |
 | 10 | Hosted plugin flow | Capture service (`apps/server`), DNS-pinned hosted capture, plugin URL import, Docker + release build | URL → Figma from the plugin alone, against a running service |
 | 11 | Browser extension | Capture the open tab (logged in, dialogs open) with the same collector; plugin paste import | A logged-in fixture page → bundle → plugin, through the loaded extension |
+| 12 | Full-page islands (extension) | Screenshots below the window for raster islands, shifting the page instead of scrolling it | A canvas far below the window of an app shell comes out as its real pixels |
 
 ## Definition of Done (every phase)
 
@@ -319,3 +320,17 @@ A published plugin can't capture logged-in pages through a deployed service, and
 - **App shells:** the collector's `unrollInPlace`/`restoreUnroll` grow the main inner scroller and its ancestors for the capture, then restore them. This is skipped while a dialog or menu is open. Tested on the app-shell fixture (800 → 2816 px, page restored). Follow-up: window-tall elements outside the scroller (100vh / `inset-y-0` sidebars) grow by the same amount; the fixture's sidebar is now fixed and checked full height in both the CLI and extension tests. Then, from a real dashboard: the extension waits and regrows for widgets that render once in view (fixture: rows loaded by an IntersectionObserver); a `flex-wrap` row that fit on one line maps to a non-wrapping stack, so wider Figma text can't push its last item down; the space before an inline box ("You have <b>20</b>") is kept so Auto Layout doesn't butt them together.
 - **Paste in Figma:** Figma desktop sends Ctrl+V to the canvas unless a plugin text field has focus, so bundles now go into a dedicated paste box. If the paste event carries no text, the input handler reads the box instead. **Copy** reports the size it copied, or why it failed.
 - **Verified by the user in Firefox + Figma desktop:** a capture of their real dashboard; Download → drop, and Copy → paste, both imported.
+
+### Phase 11 follow-up: app shells on a real dashboard (2026-10-15)
+
+From the user's HR dashboard (MUI + SimpleBar, CSS `zoom: 0.889`, a shell that resets its own height from script):
+- **Grow innermost first:** each window-sized panel that cuts content off grows by what it hides, with its ancestors; a grow that shows nothing more is undone (it ran away to the 16,000 px cap before), and the diagnostic lists what grew and what was left as is. Panels are scrolled through first, so widgets that render once in view do; every container then reaches its content's bottom, and html/body end there.
+- **CSS zoom:** rects are on-screen px, but client/scroll sizes and styles are CSS px; the unroll now converts, and an SVG without a viewBox keeps its CSS-px user space.
+- **SVG transforms under zoom:** some Chrome versions report computed transforms with the zoom applied (a pie's `translate(90 90)` as 80.01, so its ring was cut off). A probe per SVG measures the factor and divides it back out; a fixture imitates that Chrome.
+- Fixtures `app-shell-panel` and `app-shell-simplebar` (real `simplebar-react`), run at zoom 1 and 0.889.
+
+### Phase 12: Full-page islands in the extension (2026-10-15)
+
+- **Screenshots below the window:** `shotTops` plans one visible-tab screenshot per raster island not already in one (top down, at most `LIMITS.maxScreenshots` = 12), and each island is cropped from the screenshot that holds it. The page isn't scrolled: `shiftPage` puts a `translateY` on the root, which also moves `position: fixed` app-shell frames, so every screenshot shows the collected layout. Captures are spaced 550 ms apart (Chrome allows 2 a second). Islands wider or taller than the window stay placeholders.
+- **Grown heights in a style sheet:** `grow` writes `!important` rules matched by a `data-w2f-grown` attribute instead of inline styles, because page scripts that write `el.style.height` (resize observers) undid inline heights between the collect and the later screenshots: the shifted screenshot came out blank. `restoreUnroll` removes the sheet and the attributes.
+- **Tests:** `shotTops` and per-screenshot crops in `bundle.test.ts`; in the extension test, a canvas at the end of the SimpleBar dashboard (y ≈ 2400) comes out red, at zoom 1 and 0.889. With one screenshot allowed it's a placeholder and the test fails.
