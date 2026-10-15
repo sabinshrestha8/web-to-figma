@@ -186,13 +186,14 @@ drop.addEventListener("drop", (e) => {
   if (file) void loadFile(file);
 });
 
-// A bundle copied by the browser extension ("Copy for the plugin"). Pastes into fields stay theirs.
-document.addEventListener("paste", (e) => {
-  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-  const text = e.clipboardData?.getData("text/plain").trim();
-  if (!text?.startsWith("{")) return;
-  e.preventDefault();
-  loadText(text, "The pasted bundle");
+// A bundle copied by the browser extension ("Copy for the plugin"). Figma desktop sends Ctrl+V to
+// the canvas unless a text field in the plugin has focus, so the bundle goes into its own box.
+const pasteBox = $<HTMLTextAreaElement>("paste");
+pasteBox.addEventListener("paste", (e) => {
+  const text = e.clipboardData?.getData("text/plain") ?? "";
+  e.preventDefault(); // a multi-MB bundle never lands in the box itself
+  if (!text.trim()) return show("The clipboard is empty. Choose Copy for the plugin in the extension first.");
+  loadText(text, "The pasted text");
 });
 
 exportButton.addEventListener("click", () => send({ type: "export" }));

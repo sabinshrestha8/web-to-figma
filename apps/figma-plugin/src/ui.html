@@ -99,6 +99,10 @@
         width: 100%;
         height: 6px;
       }
+      #paste {
+        margin-top: 12px;
+        resize: none;
+      }
       #drop {
         display: block;
         margin-top: 12px;
@@ -202,9 +206,14 @@
     </div>
     <ul id="diagnostics"></ul>
 
+    <textarea
+      id="paste"
+      rows="2"
+      aria-label="Paste a bundle"
+      placeholder="Copied with the browser extension? Click here and press Ctrl+V."
+    ></textarea>
     <label id="drop">
-      Or drop a <b>.w2f.json</b> bundle here (or click to choose one), or paste one copied from
-      the browser extension (Ctrl+V).
+      Or drop a <b>.w2f.json</b> bundle here (or click to choose one).
       <input id="file" type="file" accept=".json,application/json" />
     </label>
     <button id="export" type="button" title="For pnpm compare against the reference screenshot" hidden>
