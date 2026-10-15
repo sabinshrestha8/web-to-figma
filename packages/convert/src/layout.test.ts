@@ -204,6 +204,34 @@ describe("layout engine", () => {
     expect(wrap.layout).toMatchObject({ mode: "stack", wrap: true, gap: 10, crossGap: 10 });
   });
 
+  it("doesn't wrap in Figma a flex-wrap row that fit on one line", () => {
+    const { nodes } = page((b) => {
+      const row = el(
+        b.id,
+        "div",
+        { x: 0, y: 0, width: 400, height: 40 },
+        {
+          ...bg("rgb(1, 1, 1)"),
+          display: "flex",
+          "flex-wrap": "wrap",
+          "column-gap": "10px",
+          "align-items": "center",
+        },
+      );
+      return [
+        row,
+        el(row.id, "a", { x: 0, y: 0, width: 100, height: 40 }, bg("rgb(2, 2, 2)")),
+        el(row.id, "b", { x: 110, y: 10, width: 100, height: 20 }, bg("rgb(2, 2, 2)")),
+      ];
+    });
+    const { capture } = convert(nodes);
+    expect(box("div", capture.root).layout).toMatchObject({
+      mode: "stack",
+      direction: "horizontal",
+      wrap: false,
+    });
+  });
+
   it("recovers space-evenly and block stacking with margins from measurements", () => {
     const { nodes } = page((b) => {
       // space-evenly: equal 20px gaps including the edges; B reads it as start + padding.

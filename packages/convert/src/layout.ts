@@ -250,12 +250,19 @@ function candidateA(el: RawElement, flow: LayoutItem[]): Candidate | null {
   }
   const ordered = [...flow].sort((a, b) => orderOf(a.raw) - orderOf(b.raw) || a.domIndex - b.domIndex);
   if (reverse) ordered.reverse();
+  // Wrap only if the browser wrapped: a row that fit on one line would otherwise break in Figma as
+  // soon as its text measures a little wider there. One line ⇔ the items share a cross-axis band.
+  const sized = flow.map((it) => it.node.bounds).filter((b) => (horizontal ? b.height : b.width) > 0.5);
+  const crossStarts = sized.map((b) => (horizontal ? b.y : b.x));
+  const crossEnds = sized.map((b) => (horizontal ? b.y + b.height : b.x + b.width));
+  const wrapped =
+    wrapProp === "wrap" && sized.length > 1 && Math.max(...crossStarts) >= Math.min(...crossEnds) - 0.5;
   return {
     layout: {
       mode: "stack",
       direction: horizontal ? "horizontal" : "vertical",
       reverse,
-      wrap: wrapProp === "wrap",
+      wrap: wrapped,
       gap: round2(gap),
       crossGap: round2(crossGap),
       padding: {
