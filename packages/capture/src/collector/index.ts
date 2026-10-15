@@ -287,7 +287,36 @@ export function hiddenScrollHeight(): number {
   return best ? best.scrollHeight - best.clientHeight : 0;
 }
 
-const unrolled = new Map<HTMLElement, string | null>();
+/**
+ * What `grow` sets, per element. It goes in a style sheet (matched by a data attribute),
+ * not the style attribute: `!important` there beats the inline heights page scripts write back ("100vh"
+ * hooks, resize observers), which would otherwise undo it before the later screenshots.
+ */
+const unrolled = new Map<HTMLElement, Record<string, string>>();
+const GROWN = "data-w2f-grown";
+const GROWN_STYLE = "__w2f-grown";
+let grownIds = 0;
+
+function setGrown(el: HTMLElement, decls: Record<string, string> | undefined): void {
+  if (decls) {
+    unrolled.set(el, decls);
+    if (!el.hasAttribute(GROWN)) el.setAttribute(GROWN, String(grownIds++));
+  } else {
+    unrolled.delete(el);
+    el.removeAttribute(GROWN);
+  }
+  let sheet = document.getElementById(GROWN_STYLE);
+  if (!sheet) {
+    sheet = document.createElement("style");
+    sheet.id = GROWN_STYLE;
+    document.documentElement.append(sheet);
+  }
+  sheet.textContent = Array.from(unrolled, ([e, d]) => {
+    const body = Object.entries(d).map(([p, v]) => `${p}:${v}!important`);
+    return `[${GROWN}="${e.getAttribute(GROWN)}"]{${body.join(";")}}`;
+  }).join("\n");
+}
+
 const scrolled = new Map<HTMLElement, number>();
 /** The unroll in progress, so a later call can grow it further (content rendered on coming into view). */
 let unroll: {
@@ -363,15 +392,11 @@ export function unrollInPlace(maxHeight: number): number {
           el === document.documentElement || el === document.body ? window.innerHeight : 0,
         ),
       });
-    const before = chain.map(({ el }) => ({ el, style: el.getAttribute("style"), had: unrolled.has(el) }));
+    const before = chain.map(({ el }) => ({ el, decls: unrolled.get(el) }));
     for (const { el, height } of chain) grow(el, height + extra);
     if (hides(target) > hidden - extra / 2) {
       // Growing it didn't show (much) more: undo, or every round would add blank height.
-      for (const { el, style, had } of before) {
-        if (style === null) el.removeAttribute("style");
-        else el.setAttribute("style", style);
-        if (!had) unrolled.delete(el);
-      }
+      for (const { el, decls } of before) setGrown(el, decls);
       stuck.add(target);
       unroll.log.push(
         `${describe(target)} (left as is: hid ${Math.round(hidden)}px, still ${Math.round(hides(target))}px after growing ${Math.round(extra)}px)`,
@@ -431,18 +456,15 @@ function contain(targets: Set<HTMLElement>): number {
 
 /** Sets `el`'s on-screen border-box height (whatever its box-sizing and zoom) until `restoreUnroll`. */
 function grow(el: HTMLElement, height: number): void {
-  if (!unrolled.has(el)) unrolled.set(el, el.getAttribute("style"));
   const cs = getComputedStyle(el);
   const extra = cs.boxSizing === "content-box" ? below(cs) + px(cs.paddingTop) + px(cs.borderTopWidth) : 0;
-  el.style.setProperty("height", `${Math.max(0, height / zoom(el) - extra)}px`, "important");
-  el.style.setProperty("max-height", "none", "important");
+  const h = `${Math.max(0, height / zoom(el) - extra)}px`;
+  setGrown(el, { ...unrolled.get(el), height: h, "max-height": "none" });
 }
 
 export function restoreUnroll(): boolean {
-  for (const [el, style] of unrolled) {
-    if (style === null) el.removeAttribute("style");
-    else el.setAttribute("style", style);
-  }
+  for (const el of unrolled.keys()) el.removeAttribute(GROWN);
+  document.getElementById(GROWN_STYLE)?.remove();
   for (const [el, top] of scrolled) el.scrollTop = top;
   unrolled.clear();
   scrolled.clear();
