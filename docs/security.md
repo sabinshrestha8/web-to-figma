@@ -38,6 +38,7 @@
 | Decode time per image | 10 s | decoder page replaced, `ASSET_REJECTED` |
 | SVG markup | 500 KB | raster fallback |
 | Raster islands + tiles per capture | 200 | extras → `ASSET_REJECTED`, grey placeholder |
+| Extension screenshots per capture | 12 | islands past the limit → `ASSET_REJECTED`, grey placeholder |
 | Raster side | 4096 px (device pixels, else CSS pixels) | `ASSET_REJECTED`, grey placeholder |
 | Bundle size | 100 MB | `PAGE_TOO_LARGE` |
 | Plugin nodes per bundle | 20,000 | `BUNDLE_INVALID` |

@@ -288,7 +288,7 @@ export function hiddenScrollHeight(): number {
 }
 
 /**
- * What `grow` sets, per element. It goes in a style sheet (matched by a data attribute),
+ * What `grow` and `shiftPage` set, per element. It goes in a style sheet (matched by a data attribute),
  * not the style attribute: `!important` there beats the inline heights page scripts write back ("100vh"
  * hooks, resize observers), which would otherwise undo it before the later screenshots.
  */
@@ -470,6 +470,17 @@ export function restoreUnroll(): boolean {
   scrolled.clear();
   unroll = null;
   return true;
+}
+
+/**
+ * Shows the page from `y` px further down, for another screenshot of the grown page. The root is
+ * shifted up rather than the window scrolled: an app shell's frame is often position: fixed, and a
+ * transform on the root carries fixed elements along. Until `restoreUnroll`.
+ */
+export function shiftPage(y: number): Promise<boolean> {
+  const root = document.documentElement;
+  setGrown(root, { ...unrolled.get(root), transform: `translateY(${-y}px)` });
+  return nextFrames();
 }
 
 /**

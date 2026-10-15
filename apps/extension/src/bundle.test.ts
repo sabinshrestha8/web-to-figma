@@ -1,7 +1,7 @@
 import { el, page } from "@w2f/convert/testing";
 import { type BoxNode, parseBundle } from "@w2f/ir";
 import { describe, expect, it } from "vitest";
-import { type Deps, toBundle } from "./bundle.ts";
+import { type Deps, shotTops, toBundle } from "./bundle.ts";
 
 /** Just enough PNG for sniffing and the IHDR size. */
 function png(width: number, height: number): Uint8Array {
@@ -13,15 +13,16 @@ function png(width: number, height: number): Uint8Array {
 }
 
 function deps(over: Partial<Deps> = {}) {
-  const crops: { x: number; y: number; width: number; height: number; scale: number }[] = [];
+  const crops: { shot: number; x: number; y: number; width: number; height: number; scale: number }[] = [];
   const d: Deps = {
     fetch: async (url) => (url.endsWith("/a.png") ? png(40, 30) : `HTTP 404`),
     decode: async () => ({ width: 40, height: 30 }),
-    crop: async (r, scale) => {
-      crops.push({ ...r, scale });
+    crop: async (shot, r, scale) => {
+      crops.push({ shot, ...r, scale });
       return png(Math.round(r.width * scale), Math.round(r.height * scale));
     },
     screenshotScale: 2,
+    shots: [0],
     ...over,
   };
   return { d, crops };
@@ -59,25 +60,38 @@ describe("toBundle (extension)", () => {
     expect(fills).toContain('"type":"image"');
     // The undecodable <img> and the on-screen canvas at device scale, then the reference (viewport at 1×).
     expect(crops).toEqual([
-      { x: 50, y: 0, width: 40, height: 30, scale: 2 },
-      { x: 100, y: 100, width: 50, height: 20, scale: 2 },
-      { x: 0, y: 0, width: 1440, height: 900, scale: 1 },
+      { shot: 0, x: 50, y: 0, width: 40, height: 30, scale: 2 },
+      { shot: 0, x: 100, y: 100, width: 50, height: 20, scale: 2 },
+      { shot: 0, x: 0, y: 0, width: 1440, height: 900, scale: 1 },
     ]);
     expect(r.value.ir.captures[0]?.screenshot).toBeDefined();
     const rejected = r.value.ir.diagnostics.filter((x) => x.code === "ASSET_REJECTED").map((x) => x.message);
     expect(rejected).toEqual([
       expect.stringContaining("gone.png not used: HTTP 404"),
-      expect.stringContaining("outside the visible part of the window"),
+      expect.stringContaining("no screenshot held all of it"),
     ]);
   });
 
   it("crops relative to the scroll position and drops the reference when scrolled", async () => {
-    const { d, crops } = deps();
+    const { d, crops } = deps({ shots: [1000] });
     const r = await toBundle({ snapshot: snapshot(), scroll: { x: 0, y: 1000 } }, d);
     if (!r.ok) throw new Error(JSON.stringify(r.diagnostics));
     // The <img> at the top is off screen now; the canvas below the fold is on it.
-    expect(crops).toEqual([{ x: 100, y: 500, width: 50, height: 20, scale: 2 }]);
+    expect(crops).toEqual([{ shot: 0, x: 100, y: 500, width: 50, height: 20, scale: 2 }]);
     expect(r.value.ir.captures[0]?.screenshot).toBeUndefined();
+  });
+
+  it("plans a screenshot per island below the window, then crops each from the one holding it", async () => {
+    const c = { snapshot: snapshot(), scroll: { x: 0, y: 0 } };
+    // The canvas at 1500 fits from 1100 on (the page ends at 2000); the <img>s aren't islands.
+    const tops = shotTops(c, 12);
+    expect(tops).toEqual([0, 1100]);
+    expect(shotTops(c, 1)).toEqual([0]);
+    const { d, crops } = deps({ shots: tops });
+    const r = await toBundle(c, d);
+    if (!r.ok) throw new Error(JSON.stringify(r.diagnostics));
+    expect(crops).toContainEqual({ shot: 1, x: 100, y: 400, width: 50, height: 20, scale: 2 });
+    expect(r.value.ir.diagnostics.map((x) => x.message).join()).not.toContain("no screenshot");
   });
 
   it("keeps the transcoded bytes when the decoder converts an image", async () => {

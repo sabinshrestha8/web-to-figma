@@ -195,7 +195,8 @@ Each package boundary is a **runtime** boundary: page, Node, pure, or Figma. `co
 - **Done (Phase 10):** the plugin imports a URL directly through the hosted capture service ([hosting.md](hosting.md)); this replaced the planned pull-by-code pairing.
 - **V1.1:** pseudo-elements via CDP; project-folder mode.
 - **Done (Phase 11):** a browser extension reusing the collector captures the open tab, logged in or not ([extension.md](extension.md)).
-- **V2:** extension → plugin without a file or clipboard (a share code through the service); full-page islands in the extension; Chrome Web Store listing; multiple service instances with shared job state.
+- **Done (Phase 12):** full-page raster islands in the extension (a screenshot per island below the window).
+- **V2:** extension → plugin without a file or clipboard (a share code through the service); Chrome Web Store listing; multiple service instances with shared job state.
 - **Later:**
   - repeated structure → Figma components;
   - CSS variables → Figma variables and tokens;

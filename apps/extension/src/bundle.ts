@@ -36,8 +36,10 @@ export interface Deps {
   /** Image bytes for a URL, or why they couldn't be read. */
   fetch(url: string): Promise<Uint8Array | string>;
   decode(args: DecodeArgs): Promise<DecodeResult>;
-  /** PNG of a viewport rect (CSS px) of the visible-tab screenshot, at `scale` image px per CSS px. */
-  crop(rect: RawRect, scale: number): Promise<Uint8Array>;
+  /** Each visible-tab screenshot's top, in page px (`shotTops`); the first is the window as it was. */
+  shots: number[];
+  /** PNG of a viewport rect (CSS px) of screenshot `shot`, at `scale` image px per CSS px. */
+  crop(shot: number, rect: RawRect, scale: number): Promise<Uint8Array>;
   /** Screenshot pixels per CSS px. */
   screenshotScale: number;
 }
@@ -64,9 +66,32 @@ const pngSize = (b: Uint8Array) => {
 };
 
 /**
+ * Where to take visible-tab screenshots so each raster island fits whole in one: the window as it
+ * is, then one starting at each island not yet in one, top down, up to `max`. ponytail: islands
+ * taller or wider than the window aren't captured (cropping across two screenshots would fix that).
+ */
+export function shotTops({ snapshot, scroll }: Captured, max: number): number[] {
+  const { width: vw, height: vh } = snapshot.viewport;
+  const last = Math.max(scroll.y, snapshot.documentSize.height - vh);
+  const tops = [scroll.y];
+  const islands = rasterPlan(snapshot, LIMITS.maxCaptureHeight, () => true)
+    .flatMap((r) => (r.kind === "element" ? [r.rect] : []))
+    .sort((a, b) => a.y - b.y);
+  for (const r of islands) {
+    if (tops.length >= max) break;
+    if (r.height > vh || r.x < scroll.x - 0.5 || r.x + r.width > scroll.x + vw + 0.5) continue;
+    if (tops.some((t) => fits(r, t, vh))) continue;
+    tops.push(Math.max(0, Math.min(r.y, last)));
+  }
+  return tops;
+}
+
+const fits = (r: RawRect, top: number, vh: number) => r.y >= top - 0.5 && r.y + r.height <= top + vh + 0.5;
+
+/**
  * The same bundle `convertUrls` builds, from a capture of the user's own tab. Differences, each
- * reported: raster islands are crops of the visible-tab screenshot (so only on-screen ones, and
- * with whatever is drawn over them), pattern tiles aren't rendered, and the reference screenshot is
+ * reported: raster islands are crops of visible-tab screenshots (so with whatever is drawn over
+ * them, and only ones that fit in the window), pattern tiles aren't rendered, and the reference screenshot is
  * the visible part of the page (only when it is scrolled to the top).
  */
 export async function toBundle(c: Captured, deps: Deps): Promise<Result<Bundle>> {
@@ -162,7 +187,7 @@ export async function toBundle(c: Captured, deps: Deps): Promise<Result<Bundle>>
     images[r.key] = { assetId, width: result.width, height: result.height };
   }
 
-  // Rasters: crops of what was on screen.
+  // Rasters: crops of the screenshots.
   const rasters: Record<string, string> = {};
   const { width: vw, height: vh } = snapshot.viewport;
   const plan = rasterPlan(snapshot, LIMITS.maxCaptureHeight, (key) => key in images);
@@ -186,27 +211,29 @@ export async function toBundle(c: Captured, deps: Deps): Promise<Result<Bundle>>
       );
       continue;
     }
-    const rect = { ...r.rect, x: r.rect.x - scroll.x, y: r.rect.y - scroll.y };
-    if (rect.width < 1 || rect.height < 1) continue;
-    if (rect.x < -0.5 || rect.y < -0.5 || rect.x + rect.width > vw + 0.5 || rect.y + rect.height > vh + 0.5) {
+    if (r.rect.width < 1 || r.rect.height < 1) continue;
+    const inX = r.rect.x >= scroll.x - 0.5 && r.rect.x + r.rect.width <= scroll.x + vw + 0.5;
+    const shot = inX ? deps.shots.findIndex((top) => fits(r.rect, top, vh)) : -1;
+    if (shot < 0) {
       reject(
         `raster ${r.key}`,
-        "it was outside the visible part of the window (scroll to it and capture again)",
+        "no screenshot held all of it (wider or taller than the window, or past the screenshot limit)",
       );
       continue;
     }
+    const rect = { ...r.rect, x: r.rect.x - scroll.x, y: r.rect.y - (deps.shots[shot] ?? 0) };
     const scale = Math.min(
       deps.screenshotScale,
       LIMITS.maxImageSide / rect.width,
       LIMITS.maxImageSide / rect.height,
     );
-    rasters[r.key] = await add(await deps.crop(rect, scale), "image/png");
+    rasters[r.key] = await add(await deps.crop(shot, rect, scale), "image/png");
   }
 
   // The reference layer is placed at the page's top-left, so only a screenshot taken there fits it.
   const atTop = Math.abs(scroll.x) < 1 && Math.abs(scroll.y) < 1;
   const screenshot = atTop
-    ? await add(await deps.crop({ x: 0, y: 0, width: vw, height: vh }, 1), "image/png")
+    ? await add(await deps.crop(0, { x: 0, y: 0, width: vw, height: vh }, 1), "image/png")
     : undefined;
 
   const converted = snapshotToIR(snapshot, {

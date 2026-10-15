@@ -1,9 +1,9 @@
 import type * as Collector from "@w2f/capture/collector";
 import { LIMITS } from "@w2f/capture/limits";
-import type { Captured } from "./bundle.ts";
+import { type Captured, shotTops } from "./bundle.ts";
 
-/** What result.html receives: the capture plus the visible-tab screenshot, or why there is none. */
-export type Handoff = (Captured & { screenshot: string }) | { error: string };
+/** What result.html receives: the capture plus its visible-tab screenshots, or why there is none. */
+export type Handoff = (Captured & { screenshots: { top: number; png: string }[] }) | { error: string };
 
 declare const __w2f: typeof Collector;
 
@@ -34,22 +34,24 @@ async function unrollInTab(maxHeight: number): Promise<number> {
   return added;
 }
 
+/** Leaves the page grown, for `shiftInTab`'s screenshots; `restoreInTab` puts it back. */
 function collectInTab(maxNodes: number, maxHeight: number, grownBy: number): Captured {
-  try {
-    // Page scripts ran since (resize observers, "100vh" hooks) and may have put heights back: grow
-    // again in this same task, so nothing runs between it and the collect.
-    const expanded = grownBy ? __w2f.unrollInPlace(maxHeight) : 0;
-    const { snapshot } = __w2f.collect({ maxNodes, dpr: window.devicePixelRatio });
-    const grown = __w2f.unrollLog();
-    return {
-      snapshot,
-      scroll: { x: window.scrollX, y: window.scrollY },
-      ...(expanded ? { expanded } : {}),
-      ...(grown ? { grown } : {}),
-    };
-  } finally {
-    __w2f.restoreUnroll();
-  }
+  // Page scripts ran since (resize observers, "100vh" hooks) and may have put heights back: grow
+  // again in this same task, so nothing runs between it and the collect.
+  const expanded = grownBy ? __w2f.unrollInPlace(maxHeight) : 0;
+  const { snapshot } = __w2f.collect({ maxNodes, dpr: window.devicePixelRatio });
+  const grown = __w2f.unrollLog();
+  return {
+    snapshot,
+    scroll: { x: window.scrollX, y: window.scrollY },
+    ...(expanded ? { expanded } : {}),
+    ...(grown ? { grown } : {}),
+  };
+}
+
+/** Shows the collected layout from `y` px further down, for the next screenshot. */
+function shiftInTab(y: number): Promise<boolean> {
+  return __w2f.shiftPage(y);
 }
 
 function restoreInTab(): boolean {
@@ -70,17 +72,34 @@ async function captureTab(tab: chrome.tabs.Tab): Promise<void> {
         args: [LIMITS.maxCaptureHeight],
       });
       const expanded = unroll?.result ?? 0;
+      // Chrome refuses more than 2 captures a second.
+      let last = 0;
+      const shoot = async () => {
+        await new Promise((r) => setTimeout(r, last + 550 - Date.now()));
+        last = Date.now();
+        return chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
+      };
       // After unrolling, so the screenshot matches the layout that is collected.
-      const screenshot = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
+      const first = await shoot();
       const [run] = await chrome.scripting.executeScript({
         target,
         func: collectInTab,
         args: [LIMITS.maxElements, LIMITS.maxCaptureHeight, expanded],
       });
       if (!run?.result) throw new Error("the page returned nothing");
-      handoff = { ...run.result, screenshot };
+      // Islands below the window: more screenshots, further down the same layout.
+      const tops = shotTops(run.result, LIMITS.maxScreenshots);
+      const screenshots = [{ top: tops[0] ?? 0, png: first }];
+      for (const top of tops.slice(1)) {
+        await chrome.scripting.executeScript({
+          target,
+          func: shiftInTab,
+          args: [top - run.result.scroll.y],
+        });
+        screenshots.push({ top, png: await shoot() });
+      }
+      handoff = { ...run.result, screenshots };
     } finally {
-      // collectInTab restores already; this covers a failure before it ran.
       await chrome.scripting.executeScript({ target, func: restoreInTab });
     }
   } catch (e) {

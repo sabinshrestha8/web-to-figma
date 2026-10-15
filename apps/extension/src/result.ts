@@ -36,9 +36,11 @@ async function fetchImage(url: string): Promise<Uint8Array | string> {
   }
 }
 
-async function deps(screenshot: string, viewportWidth: number): Promise<Deps> {
-  const shot = await createImageBitmap(await (await fetch(screenshot)).blob());
-  const screenshotScale = shot.width / viewportWidth;
+async function deps(screenshots: { top: number; png: string }[], viewportWidth: number): Promise<Deps> {
+  const shots = await Promise.all(
+    screenshots.map(async (s) => createImageBitmap(await (await fetch(s.png)).blob())),
+  );
+  const screenshotScale = (shots[0]?.width ?? viewportWidth) / viewportWidth;
   return {
     fetch: fetchImage,
     decode: (a) =>
@@ -50,7 +52,10 @@ async function deps(screenshot: string, viewportWidth: number): Promise<Deps> {
         ),
       ]),
     screenshotScale,
-    async crop(rect, scale) {
+    shots: screenshots.map((s) => s.top),
+    async crop(i, rect, scale) {
+      const shot = shots[i];
+      if (!shot) throw new Error(`no screenshot ${i}`);
       const w = Math.max(1, Math.round(rect.width * scale));
       const h = Math.max(1, Math.round(rect.height * scale));
       const canvas = new OffscreenCanvas(w, h);
@@ -98,7 +103,7 @@ async function main() {
     prompt.hidden = true;
   }
   status.textContent = "Converting…";
-  const result = await toBundle(handoff, await deps(handoff.screenshot, snapshot.viewport.width));
+  const result = await toBundle(handoff, await deps(handoff.screenshots, snapshot.viewport.width));
   if (!result.ok) {
     status.textContent = "The capture failed.";
     showDiagnostics(result.diagnostics);

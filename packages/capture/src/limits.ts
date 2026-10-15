@@ -17,6 +17,8 @@ export const LIMITS = {
   maxRasters: 200,
   /** Images (img, url() backgrounds, svg fallbacks) per capture. */
   maxAssets: 300,
+  /** Extension: visible-tab screenshots per capture, for islands below the window (Chrome takes 2 a second). */
+  maxScreenshots: 12,
   maxAssetBytes: 10_000_000,
   /** Decoded size; larger images are rejected, not downscaled. */
   maxImagePixels: 50_000_000,

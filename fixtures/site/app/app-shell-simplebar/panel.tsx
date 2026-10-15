@@ -7,6 +7,7 @@ const LATE = ["Card 13", "Card 14", "Card 15"];
 
 export function Panel() {
   const ref = useRef<HTMLDivElement>(null);
+  const chart = useRef<HTMLCanvasElement>(null);
   const [late, setLate] = useState(false);
   useEffect(() => {
     const el = ref.current;
@@ -16,6 +17,12 @@ export function Panel() {
     });
     io.observe(el);
     return () => io.disconnect();
+  }, []);
+  useEffect(() => {
+    const ctx = chart.current?.getContext("2d");
+    if (!ctx) return;
+    ctx.fillStyle = "rgb(220, 0, 0)";
+    ctx.fillRect(0, 0, 200, 80);
   }, []);
   return (
     <SimpleBar style={{ height: "100%" }}>
@@ -33,6 +40,8 @@ export function Panel() {
           </section>
         ))}
       </div>
+      {/* Far below the window: a raster island the extension screenshots further down. */}
+      <canvas ref={chart} width={200} height={80} aria-label="chart" />
       <div ref={ref} className="h-px" />
       <p>End of dashboard</p>
     </SimpleBar>

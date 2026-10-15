@@ -182,6 +182,18 @@ describe("browser extension", () => {
       const root = c?.root.bounds.height ?? 0;
       expect(root).toBeGreaterThanOrEqual((end?.bounds.y ?? 0) + (end?.bounds.height ?? 0));
       expect(root).toBeLessThan((end?.bounds.y ?? 0) + 100);
+      // The canvas far below the window is cropped from a screenshot taken there: red, not a placeholder.
+      const chart = c && walk(c.root).find((n) => n.name === "canvas chart");
+      const fill = chart?.type === "box" ? chart.fills.find((f) => f.type === "image") : undefined;
+      if (fill?.type !== "image") throw new Error("the canvas has no image");
+      expect(chart?.bounds.y).toBeGreaterThan(2000 * zoom);
+      const rgb = await page.evaluate(async (b64) => {
+        const img = await createImageBitmap(await (await fetch(`data:image/png;base64,${b64}`)).blob());
+        const ctx = new OffscreenCanvas(img.width, img.height).getContext("2d");
+        ctx?.drawImage(img, 0, 0);
+        return Array.from(ctx?.getImageData(img.width / 2, img.height / 2, 1, 1).data ?? []).slice(0, 3);
+      }, bundle.assetData[fill.assetId] ?? "");
+      expect(rgb).toEqual([220, 0, 0]);
       // Every clipping box around it reaches its bottom.
       const around = (n: Node, path: Node[]): Node[] | undefined =>
         n === end
