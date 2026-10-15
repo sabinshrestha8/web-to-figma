@@ -217,7 +217,11 @@ export async function toBundle(c: Captured, deps: Deps): Promise<Result<Bundle>>
     if (shot < 0) {
       reject(
         `raster ${r.key}`,
-        "no screenshot held all of it (wider or taller than the window, or past the screenshot limit)",
+        !inX
+          ? "it reaches past the window's left or right edge, so no screenshot holds all of it"
+          : r.rect.height > vh
+            ? "it is taller than the window, so no screenshot holds all of it"
+            : `it is below the first ${LIMITS.maxScreenshots} screenshots`,
       );
       continue;
     }

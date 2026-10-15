@@ -68,7 +68,7 @@ describe("toBundle (extension)", () => {
     const rejected = r.value.ir.diagnostics.filter((x) => x.code === "ASSET_REJECTED").map((x) => x.message);
     expect(rejected).toEqual([
       expect.stringContaining("gone.png not used: HTTP 404"),
-      expect.stringContaining("no screenshot held all of it"),
+      expect.stringContaining("below the first 12 screenshots"),
     ]);
   });
 
@@ -91,7 +91,7 @@ describe("toBundle (extension)", () => {
     const r = await toBundle(c, d);
     if (!r.ok) throw new Error(JSON.stringify(r.diagnostics));
     expect(crops).toContainEqual({ shot: 1, x: 100, y: 400, width: 50, height: 20, scale: 2 });
-    expect(r.value.ir.diagnostics.map((x) => x.message).join()).not.toContain("no screenshot");
+    expect(r.value.ir.diagnostics.map((x) => x.message).join()).not.toContain("screenshot");
   });
 
   it("keeps the transcoded bytes when the decoder converts an image", async () => {
