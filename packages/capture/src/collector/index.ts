@@ -288,30 +288,36 @@ export function hiddenScrollHeight(): number {
 }
 
 const unrolled = new Map<HTMLElement, string | null>();
+/** The unroll in progress, so a later call can grow it further (content rendered on coming into view). */
+let unroll: { scroller: HTMLElement; windowTall: HTMLElement[]; added: number } | null = null;
 
 /**
  * The extension's `hiddenScrollHeight` fix: it can't make the window taller, so it grows the main
  * inner scroller and every ancestor by what the scroller hides (up to `maxHeight` in all), until
  * `restoreUnroll`. Elements as tall as the window (100vh or `inset-y-0` sidebars) grow by the same
- * amount, as they would in a taller window. Returns the px added.
+ * amount, as they would in a taller window. Call again after the page reacts (lazy widgets that
+ * render once in view) to grow by what it hides now. Returns the px added in all.
  */
 export function unrollInPlace(maxHeight: number): number {
-  if (hiddenScrollHeight() <= 1) return 0;
-  const scroller = mainScroller();
-  if (!(scroller instanceof HTMLElement)) return 0;
-  // ponytail: "as tall as the window" stands in for 100vh, which computed styles don't reveal.
-  // Not inside the scroller: growing its content would change what it hides.
-  const windowTall = Array.from(document.querySelectorAll<HTMLElement>("body *")).filter(
-    (el) =>
-      !el.contains(scroller) &&
-      !scroller.contains(el) &&
-      Math.abs(el.getBoundingClientRect().height - window.innerHeight) <= 1,
-  );
-  let added = 0;
+  if (!unroll) {
+    if (hiddenScrollHeight() <= 1) return 0;
+    const scroller = mainScroller();
+    if (!(scroller instanceof HTMLElement)) return 0;
+    // ponytail: "as tall as the window" stands in for 100vh, which computed styles don't reveal.
+    // Not inside the scroller: growing its content would change what it hides.
+    const windowTall = Array.from(document.querySelectorAll<HTMLElement>("body *")).filter(
+      (el) =>
+        !el.contains(scroller) &&
+        !scroller.contains(el) &&
+        Math.abs(el.getBoundingClientRect().height - window.innerHeight) <= 1,
+    );
+    unroll = { scroller, windowTall, added: 0 };
+  }
+  const { scroller, windowTall } = unroll;
   for (let round = 0; round < 3; round++) {
     const extra = Math.min(
       scroller.scrollHeight - scroller.clientHeight,
-      maxHeight - window.innerHeight - added,
+      maxHeight - window.innerHeight - unroll.added,
     );
     if (extra <= 1) break;
     // Measure the whole chain first: a grown child would already stretch an auto-height parent.
@@ -326,12 +332,11 @@ export function unrollInPlace(maxHeight: number): number {
         ),
       });
     for (const { el, height } of chain) grow(el, height + extra);
-    added += extra;
+    unroll.added += extra;
   }
-  for (const el of windowTall)
-    if (el.getBoundingClientRect().height < window.innerHeight + added - 1)
-      grow(el, window.innerHeight + added);
-  return added;
+  const full = window.innerHeight + unroll.added;
+  for (const el of windowTall) if (el.getBoundingClientRect().height < full - 1) grow(el, full);
+  return unroll.added;
 }
 
 function grow(el: HTMLElement, height: number): void {
@@ -346,6 +351,7 @@ export function restoreUnroll(): boolean {
     else el.setAttribute("style", style);
   }
   unrolled.clear();
+  unroll = null;
   return true;
 }
 

@@ -21,8 +21,15 @@ async function unrollInTab(maxHeight: number): Promise<number> {
     '[role="dialog"],[aria-modal="true"],dialog[open],[role="menu"],[role="listbox"]',
   );
   if (Array.from(overlays).some((el) => el.getClientRects().length > 0)) return 0;
-  const added = __w2f.unrollInPlace(maxHeight);
-  if (added > 0) await __w2f.nextFrames();
+  let added = __w2f.unrollInPlace(maxHeight);
+  // Dashboards often render widgets only once they're in view: let them, then grow again.
+  for (let round = 0; added > 0 && round < 5; round++) {
+    await __w2f.nextFrames();
+    await new Promise((r) => setTimeout(r, 300));
+    const now = __w2f.unrollInPlace(maxHeight);
+    if (now === added) break;
+    added = now;
+  }
   return added;
 }
 

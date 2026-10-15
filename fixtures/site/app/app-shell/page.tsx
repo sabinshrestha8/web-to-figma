@@ -1,3 +1,5 @@
+import { LoadMore } from "./more";
+
 const ROWS = Array.from({ length: 24 }, (_, i) => `Report row ${i + 1}`);
 
 /**
@@ -16,6 +18,7 @@ export default function AppShell() {
               {row}
             </section>
           ))}
+          <LoadMore />
           <p>End of report</p>
         </main>
       </div>

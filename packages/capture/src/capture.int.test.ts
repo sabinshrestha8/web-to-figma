@@ -267,6 +267,7 @@ describe("app-shell pages that scroll inside an element", () => {
     const { ir } = result.value;
     const cap = ir.captures[0]!;
     const end = texts(cap.root).find((t) => t.characters === "End of report");
+    expect(texts(cap.root).some((t) => t.characters === "Loaded row 6")).toBe(true);
     expect(end?.bounds.y).toBeGreaterThan(desktop.height);
     expect(cap.root.bounds.height).toBeGreaterThanOrEqual(end!.bounds.y + end!.bounds.height);
     // The window-tall fixed sidebar is drawn as tall as the page.

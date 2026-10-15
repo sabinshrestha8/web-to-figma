@@ -86,7 +86,9 @@ describe("browser extension", () => {
   it("grows an app shell's inner scroller so the whole page is captured, then restores it", async () => {
     const page = await context.newPage();
     await page.goto(`${fixture}/app-shell`);
-    const before = await page.evaluate(() => document.querySelector("main")?.outerHTML);
+    // Its content may grow (rows load once in view, as on scrolling); its own style must come back.
+    const mainStyle = () => document.querySelector("main")?.getAttribute("style") ?? null;
+    const before = await page.evaluate(mainStyle);
     const inlineStyles = () =>
       Array.from(document.querySelectorAll("[style]"))
         .map((el) => `${el.tagName} ${el.getAttribute("style")}`)
@@ -96,9 +98,10 @@ describe("browser extension", () => {
     const { bundle, text } = await capture(page);
     const c = bundle.ir.captures[0];
     expect(text).toContain("End of report");
-    // 800px window + what <main> hid (24 rows of 112px and the closing line): all of it, once.
-    expect(c?.root.bounds.height).toBeGreaterThan(2700);
-    expect(c?.root.bounds.height).toBeLessThan(3000);
+    expect(text).toContain("Loaded row 6"); // rendered once in view, then grown again to show it
+    // 800px window + what <main> hid (30 rows of 112px and the closing line): all of it, once.
+    expect(c?.root.bounds.height).toBeGreaterThan(3400);
+    expect(c?.root.bounds.height).toBeLessThan(3700);
     expect(bundle.ir.diagnostics.map((d) => d.code)).toContain("SCROLL_CONTAINER_EXPANDED");
     // The window-tall fixed sidebar grows with the page, as in a taller window.
     const walk = (n: Node): Node[] => [n, ...(n.type === "box" ? n.children.flatMap(walk) : [])];
@@ -106,8 +109,8 @@ describe("browser extension", () => {
     expect(nav?.bounds.height).toBe(c?.root.bounds.height);
     // The user's tab is back the way it was.
     // (Chrome may leave an empty style="" where none was: no styles, so nothing changes on screen.)
-    const after = await page.evaluate(() => document.querySelector("main")?.outerHTML);
-    expect(after?.replace(' style=""', "")).toBe(before);
+    const after = await page.evaluate(mainStyle);
+    expect(after === "" ? null : after).toBe(before);
     expect(await page.evaluate(inlineStyles)).toEqual(stylesBefore);
     expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBe(800);
     await page.close();
