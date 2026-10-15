@@ -17,12 +17,14 @@ pnpm install
 pnpm extension:build      # writes apps/extension/dist
 ```
 
-In Chrome or Edge, open `chrome://extensions`, turn on **Developer mode**, choose **Load unpacked** and pick `apps/extension/dist`. After a pull, run `pnpm extension:build` again and press the reload icon on the extension's card. A bundle imports into a plugin built from the same checkout.
+**Firefox (128+):** open `about:debugging#/runtime/this-firefox`, choose **Load Temporary Add-on…** and pick `apps/extension/dist/manifest.json`. A temporary add-on is removed when Firefox restarts. To keep it installed, it must be signed by Mozilla (an unlisted, self-distributed submission on addons.mozilla.org). The first time you capture, the result tab may ask you to **Allow access to the page's images**: Firefox lets you withhold "all sites" access, and without it only same-site images can be read.
+
+**Chrome or Edge:** open `chrome://extensions`, turn on **Developer mode**, choose **Load unpacked** and pick `apps/extension/dist`. After a pull, run `pnpm extension:build` again and press the reload icon on the extension's card. A bundle imports into a plugin built from the same checkout.
 
 ## Use
 
 1. Open the page and get it into the state you want: logged in, dialog open, scrolled to the top.
-2. Click the **Web to Figma** toolbar button (pin it from the puzzle-piece menu), or press **Alt+Shift+F**. The shortcut doesn't move focus, so menus that close on blur stay open. You can change it at `chrome://extensions/shortcuts`.
+2. Click the **Web to Figma** toolbar button (pin it from the puzzle-piece/extensions menu), or press **Alt+Shift+F**. The shortcut doesn't move focus, so menus that close on blur stay open. You can change it at `chrome://extensions/shortcuts`.
 3. A result tab opens and converts the capture. Choose **Download .w2f.json** and drop the file into the plugin, or choose **Copy for the plugin**, click the plugin window and press **Ctrl+V**.
 
 The frame size is your window's viewport. For a mobile or tablet frame, open DevTools device mode at the size you want, then capture.
