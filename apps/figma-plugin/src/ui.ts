@@ -191,8 +191,20 @@ drop.addEventListener("drop", (e) => {
 const pasteBox = $<HTMLTextAreaElement>("paste");
 pasteBox.addEventListener("paste", (e) => {
   const text = e.clipboardData?.getData("text/plain") ?? "";
-  e.preventDefault(); // a multi-MB bundle never lands in the box itself
-  if (!text.trim()) return show("The clipboard is empty. Choose Copy for the plugin in the extension first.");
+  // Keeps a multi-MB bundle out of the box. If the event carries no text (some hosts don't fill
+  // clipboardData), the paste goes ahead and the input handler reads the box instead.
+  if (!text.trim()) return show("Reading the paste…");
+  e.preventDefault();
+  loadText(text, "The pasted text");
+});
+pasteBox.addEventListener("input", () => {
+  const text = pasteBox.value.trim();
+  pasteBox.value = "";
+  if (!text) return;
+  if (!text.startsWith("{"))
+    return show(
+      `That isn't a bundle (${text.length} characters pasted). Choose Copy for the plugin in the extension, then paste again.`,
+    );
   loadText(text, "The pasted text");
 });
 
